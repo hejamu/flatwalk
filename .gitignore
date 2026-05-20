@@ -10,3 +10,4 @@ venv/
 *.npz
 *.tsv
 !tests/data/*.tsv
+!examples/cache/*.tsv
