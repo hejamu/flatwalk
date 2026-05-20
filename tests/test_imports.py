@@ -42,15 +42,27 @@ def test_wlconfig_validation():
         WLConfig(bin_scheme=scheme, ln_f_initial=1e-10, ln_f_final=1e-8)
 
 
-def test_wldriver_run_is_m2_stub():
-    from flatwalk import Bin1D, WLConfig, WLDriver
-    import pytest
+def test_wldriver_run_minimal_smoke():
+    """Tiny smoke run: 10-bin domain, trivial propose, finite max_trials."""
+    import numpy as np
 
-    driver = WLDriver(WLConfig(bin_scheme=Bin1D(0.0, 1.0, 10)))
-    with pytest.raises(NotImplementedError):
-        driver.run(
-            initial_state=None,
-            energy_fn=lambda s: 0.0,
-            order_parameter_fn=lambda s: 0.5,
-            propose_move_fn=lambda s, r: (s, 0.0),
-        )
+    from flatwalk import Bin1D, WLConfig, WLDriver
+
+    scheme = Bin1D(0.0, 10.0, 10)
+    cfg = WLConfig(bin_scheme=scheme, n_check=50, ln_f_final=1e-3)
+    driver = WLDriver(cfg)
+
+    def propose(state, rng):
+        step = rng.choice([-1.0, 1.0])
+        return state + step, 0.0
+
+    result = driver.run(
+        initial_state=5.0,
+        energy_fn=lambda s: 0.0,
+        order_parameter_fn=lambda s: s,
+        propose_move_fn=propose,
+        rng=np.random.default_rng(0),
+        max_trials=500,
+    )
+    assert result.t_total == 500
+    assert result.visited.any()
