@@ -15,13 +15,42 @@ The contract between flatwalk and the user is the following:
 `state` is opaque to flatwalk — whatever your callbacks recognise:
 tuple, dataclass, numpy array, torch tensor, anything. You hand one
 initial `state` object to `driver.run(...)` to start; from there the
-callbacks do all state manipulation. The current scope is the 1D
-order-parameter case validated against the 2D Ising model. ≥2D order
-parameters, replica-exchange WL, and batched walkers for GPU-backed
-energy evaluation are not yet implemented, but the architecture is set
-up so they drop in additively — see
-[docs/storyline.md](docs/storyline.md) for the design rationale and
-roadmap.
+callbacks do all state manipulation.
+
+## Capabilities
+
+### Implemented
+
+- 1D order-parameter Wang-Landau with the Belardinelli-Pereyra 1/t-WL
+  transition
+- Atomic checkpoint and bit-identical resume (full RNG state preserved)
+- Per-check `progress_callback` and per-trial `trial_callback` hooks;
+  TSV trace writer for offline diagnostics
+- Live matplotlib viewer (3 stacked panels) with headless PNG / mp4 /
+  gif export
+- Per-trial trajectory video with current-bin highlight, per-stage
+  cumulative histogram, and Ising spin-grid overlay
+- Validated against Beale's exact `n(E)` on the 2D Ising L=8 torus,
+  cross-checked against brute-force enumeration on L=3 and L=4; the
+  full validation runs in CI
+
+### Planned
+
+See [docs/storyline.md](docs/storyline.md) for design rationale and
+line-count estimates.
+
+- **Batched walkers.** `BatchedCallbacks` + `WalkerBatch` so ≥2
+  walkers move through the system in one batched callable per tick.
+  This is the path by which a GPU energy backend (PyTorch, JAX) gets
+  its speedup — one stacked forward pass per tick, not N sequential
+  ones.
+- **Replica-exchange Wang-Landau.** A concrete `ExchangeHandler` on
+  top of the batched layer; the ABC and driver call site are already
+  wired so this is additive, not a rewrite.
+- **≥2D order parameters.** `BinND` as a sibling of `Bin1D`; the
+  driver's `g` stays a flat 1D ndarray, only the binning changes.
+- **2D Ising in (E, M) Beale extension.** Exact reference for the
+  multi-D order-parameter and REWL validations.
 
 ## Install
 
