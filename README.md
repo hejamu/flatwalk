@@ -154,6 +154,26 @@ Pillow, automatic fallback). The committed
 of an L=8 run from `t=10³` through 1/t-regime entry to convergence at
 `ln_f = 10⁻⁸`.
 
+### Per-trial trajectory video
+
+A separate `trial_callback(t, bin_current, energy, ln_f, accepted)`
+hook fires once per individual trial (cheap; None by default).
+`TrialRecorder` buffers per-trial state and `make_trajectory_movie`
+renders an animation where the walker hops bin-by-bin while the
+histogram and `log g(E)` build up from zero — useful for seeing the WL
+dynamics at the trial scale that the check-interval movie collapses
+through:
+
+```bash
+.venv/bin/python examples/wl_trajectory_demo.py -L 8 -n 1500 --fps 30 \
+    -o wl_trajectory.mp4
+```
+
+The committed [examples/wl_trajectory.mp4](examples/wl_trajectory.mp4)
+is 50 s at 30 fps showing 1500 consecutive single-spin-flip trials.
+The current bin is highlighted in red on the histogram, and the
+walker's energy trajectory `E(t)` appears in the bottom panel.
+
 ### Divergences from spec, and why
 
 To meet the spec §4.4 pass criteria on L=8 (`max ε < 5%`, `mean ε < 1%`)

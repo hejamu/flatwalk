@@ -128,6 +128,43 @@ def test_snapshot_recorder_log_spaced_sampling():
     assert early >= late  # log spacing → more frames at small t
 
 
+def test_trial_recorder_buffers_correctly():
+    """TrialRecorder records every trial up to max_records, then stops."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+
+    rec = wl_viewer.TrialRecorder(max_records=50)
+    for k in range(1, 200):
+        rec(k, k % 5, float(k), 0.5, k % 2 == 0)
+    arr = rec.as_arrays()
+    assert len(arr["t"]) == 50
+    np.testing.assert_array_equal(arr["t"], np.arange(1, 51))
+    assert arr["accepted"].dtype == bool
+
+
+def test_make_trajectory_movie_renders_gif(tmp_path):
+    """make_trajectory_movie must produce a valid GIF from a tiny history."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+
+    n = 8
+    bin_centers = np.linspace(-4, 4, 9)
+    history = {
+        "t": np.arange(1, n + 1, dtype=np.int64),
+        "bin": np.array([4, 3, 4, 5, 4, 3, 2, 3], dtype=np.int64),
+        "energy": np.array([0, -1, 0, 1, 0, -1, -2, -1], dtype=np.float64),
+        "ln_f": np.full(n, 1.0),
+        "accepted": np.array([True, True, False, True, False, True, True, True]),
+    }
+    out = tmp_path / "traj.gif"
+    wl_viewer.make_trajectory_movie(
+        history, out, bin_centers=bin_centers, fps=4,
+    )
+    assert out.exists() and out.stat().st_size > 2_000
+
+
 def test_make_movie_renders_gif(tmp_path):
     """make_movie should produce a valid GIF from a tiny snapshot list."""
     import os

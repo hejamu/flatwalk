@@ -328,6 +328,203 @@ class SnapshotRecorder:
             self._last_t = snap.t
 
 
+class TrialRecorder:
+    """`trial_callback` that buffers per-trial walker state.
+
+    Records ``(t, bin_current, energy, ln_f, accepted)`` for every trial
+    up to ``max_records`` (or unlimited). Storage is ~32 bytes/trial;
+    10⁵ trials → ~3 MB. After the run, replay via
+    :func:`make_trajectory_movie` to see the walker stepping bin by bin
+    while the histogram and ``g`` build up.
+
+    Pair this with ``max_trials=N`` on ``WLDriver.run`` for a short
+    self-contained demo of the per-trial dynamics. Trying to record an
+    entire production run (10⁸ trials) is impractical — the recorder
+    would consume gigabytes.
+    """
+
+    def __init__(self, max_records: Optional[int] = None) -> None:
+        self.max_records = max_records
+        self.t: list[int] = []
+        self.bin: list[int] = []
+        self.energy: list[float] = []
+        self.ln_f: list[float] = []
+        self.accepted: list[bool] = []
+        self._stop = False
+
+    def __call__(self, t, bin_current, energy, ln_f, accepted) -> None:
+        if self._stop:
+            return
+        self.t.append(t)
+        self.bin.append(bin_current)
+        self.energy.append(energy)
+        self.ln_f.append(ln_f)
+        self.accepted.append(accepted)
+        if self.max_records is not None and len(self.t) >= self.max_records:
+            self._stop = True
+
+    def as_arrays(self) -> dict:
+        return {
+            "t": np.asarray(self.t, dtype=np.int64),
+            "bin": np.asarray(self.bin, dtype=np.int64),
+            "energy": np.asarray(self.energy, dtype=np.float64),
+            "ln_f": np.asarray(self.ln_f, dtype=np.float64),
+            "accepted": np.asarray(self.accepted, dtype=bool),
+        }
+
+
+def make_trajectory_movie(
+    history,
+    output_path,
+    *,
+    bin_centers,
+    log_g_exact=None,
+    title: str = "Wang-Landau trajectory",
+    fps: int = 30,
+    dpi: int = 110,
+) -> None:
+    """Per-trial animation: walker hopping between bins, with H and ``g`` building up.
+
+    Three panels:
+
+    1. **log g(E)** building up across the visited bins (one bin gets
+       ``+ln_f`` per trial). Optional dashed reference overlay.
+    2. **H(E)** bars rising as visits accumulate, with the **current bin
+       highlighted** in red so the walker's position is unambiguous.
+    3. **E vs t** time series — the walker's energy trajectory, with the
+       current step marked as a red dot.
+
+    ``history`` is the dict returned by ``TrialRecorder.as_arrays()``.
+    Renders one frame per recorded trial, so a ~2 minute video at 30 fps
+    needs ~3600 recorded trials.
+    """
+    from pathlib import Path
+
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.animation as animation
+    import matplotlib.pyplot as plt
+
+    output_path = Path(output_path)
+    bin_centers = np.asarray(bin_centers, dtype=np.float64)
+    n_bins = len(bin_centers)
+    bin_width = float(np.median(np.diff(bin_centers))) if n_bins > 1 else 1.0
+    bar_w = 0.9 * bin_width
+
+    t_arr = history["t"]
+    bin_arr = history["bin"]
+    energy_arr = history["energy"]
+    ln_f_arr = history["ln_f"]
+    n_frames = len(t_arr)
+    if n_frames == 0:
+        raise ValueError("history is empty")
+
+    # Incrementally maintained state.
+    g = np.zeros(n_bins, dtype=np.float64)
+    H = np.zeros(n_bins, dtype=np.int64)
+    visited = np.zeros(n_bins, dtype=bool)
+
+    fig, axes = plt.subplots(
+        3, 1, figsize=(11, 9),
+        gridspec_kw={"height_ratios": [3, 3, 2]},
+    )
+    ax_g, ax_H, ax_traj = axes
+
+    # ---- log g(E) ----
+    (line_g,) = ax_g.plot([], [], color="C0", lw=2.0, label="WL log g (shifted)")
+    if log_g_exact is not None:
+        log_g_exact = np.asarray(log_g_exact)
+        finite = np.isfinite(log_g_exact)
+        ref = log_g_exact.copy()
+        if finite.any():
+            ref[finite] -= ref[finite].min()
+        ax_g.plot(
+            bin_centers[finite], ref[finite],
+            color="k", ls="--", lw=1.0, alpha=0.6, label="reference (exact)",
+        )
+    ax_g.set_ylabel("log g(E)  (shifted)")
+    ax_g.grid(alpha=0.3)
+    ax_g.legend(loc="upper right")
+    ax_g.set_xlim(bin_centers.min(), bin_centers.max())
+
+    # ---- H(E) bars ----
+    bars_H = ax_H.bar(bin_centers, np.zeros(n_bins), width=bar_w, color="C2", alpha=0.85)
+    # current-bin highlight
+    current_bar = ax_H.bar(
+        [bin_centers[bin_arr[0]]], [0.0],
+        width=bar_w, color="red", alpha=0.95, zorder=5,
+    )[0]
+    ax_H.set_ylabel("H(E)")
+    ax_H.set_xlim(bin_centers.min(), bin_centers.max())
+    ax_H.grid(alpha=0.3)
+
+    # ---- walker trajectory E vs t ----
+    (line_traj,) = ax_traj.plot([], [], color="C1", lw=0.7, alpha=0.7)
+    (walker_dot,) = ax_traj.plot([], [], "ro", markersize=8, zorder=5)
+    ax_traj.set_xlabel("t (trials)")
+    ax_traj.set_ylabel("E(t)")
+    ax_traj.set_xlim(0, int(t_arr[-1]))
+    ax_traj.set_ylim(float(energy_arr.min()) - 4, float(energy_arr.max()) + 4)
+    ax_traj.grid(alpha=0.3)
+
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+
+    def animate(i):
+        b = int(bin_arr[i])
+        g[b] += float(ln_f_arr[i])
+        H[b] += 1
+        visited[b] = True
+
+        if visited.any():
+            shifted = g.copy()
+            shifted[visited] -= shifted[visited].min()
+            line_g.set_data(bin_centers[visited], shifted[visited])
+            ymax = float(shifted[visited].max())
+            if log_g_exact is not None:
+                fin = np.isfinite(log_g_exact)
+                if fin.any():
+                    ref = log_g_exact[fin] - log_g_exact[fin].min()
+                    ymax = max(ymax, float(ref.max()))
+            ax_g.set_ylim(-0.5, ymax * 1.05 + 0.5)
+
+        for bar, h in zip(bars_H, H):
+            bar.set_height(int(h))
+        current_bar.set_x(bin_centers[b] - bar_w / 2)
+        current_bar.set_height(int(H[b]))
+        ax_H.set_ylim(0, max(1, int(H.max()) + 1))
+
+        line_traj.set_data(t_arr[: i + 1], energy_arr[: i + 1])
+        walker_dot.set_data([t_arr[i]], [energy_arr[i]])
+
+        fig.suptitle(
+            f"{title}    trial {int(t_arr[i]):,}    "
+            f"bin E = {bin_centers[b]:+.0f}    "
+            f"n_visited = {int(visited.sum())}/{n_bins}    "
+            f"{'accepted' if bool(history['accepted'][i]) else 'rejected'}"
+        )
+        return ()
+
+    ani = animation.FuncAnimation(
+        fig, animate, frames=n_frames,
+        interval=int(1000 / fps), blit=False, repeat=False,
+    )
+
+    ext = output_path.suffix.lower()
+    if ext == ".gif":
+        writer = animation.PillowWriter(fps=fps)
+    elif ext in (".mp4", ".mov", ".m4v", ".webm"):
+        writer = animation.FFMpegWriter(fps=fps, bitrate=2500)
+    else:
+        raise ValueError(
+            f"unsupported video extension {ext!r}; use .mp4, .mov, .webm, or .gif"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ani.save(str(output_path), writer=writer, dpi=dpi)
+    plt.close(fig)
+
+
 def make_movie(
     snapshots,
     output_path,
