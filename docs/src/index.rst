@@ -16,6 +16,7 @@ flatwalk does the sampling, the user provides the system to sample.
    :caption: Validation
 
    validation
+   auto_examples/index
 
 .. toctree::
    :maxdepth: 2
