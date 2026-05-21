@@ -160,19 +160,30 @@ A separate `trial_callback(t, bin_current, energy, ln_f, accepted)`
 hook fires once per individual trial (cheap; None by default).
 `TrialRecorder` buffers per-trial state and `make_trajectory_movie`
 renders an animation where the walker hops bin-by-bin while the
-histogram and `log g(E)` build up from zero — useful for seeing the WL
-dynamics at the trial scale that the check-interval movie collapses
-through:
+histogram and `log g(E)` build up from zero, with the current bin
+highlighted in red and the walker's `E(t)` plotted at the bottom:
 
 ```bash
-.venv/bin/python examples/wl_trajectory_demo.py -L 8 -n 1500 --fps 30 \
+# Long run, log-spaced playback (early trials slow, late trials fast):
+.venv/bin/python examples/wl_trajectory_demo.py -L 8 \
+    -n 100000 --n-check 2000 --flatness 0.5 \
+    --n-frames 600 --fps 30 \
+    -o wl_trajectory_flatness.mp4
+
+# Short run, every-trial playback:
+.venv/bin/python examples/wl_trajectory_demo.py -L 8 -n 1500 \
     -o wl_trajectory.mp4
 ```
 
-The committed [examples/wl_trajectory.mp4](examples/wl_trajectory.mp4)
-is 50 s at 30 fps showing 1500 consecutive single-spin-flip trials.
-The current bin is highlighted in red on the histogram, and the
-walker's energy trajectory `E(t)` appears in the bottom panel.
+The committed
+[examples/wl_trajectory_flatness.mp4](examples/wl_trajectory_flatness.mp4)
+is ~15 s at 30 fps. With `--n-frames 600` and a 100,000-trial run, the
+600 frame indices are log-spaced in trial number — early frames hit
+consecutive trials (you can watch the walker step bin-by-bin), and
+later frames skip through hundreds of trials each, so the playback
+visibly "speeds up" as the histogram approaches flatness. Five f-stage
+halves fire in the recorded window (annotated in the title); `H`
+resets at each one and rebuilds toward a flatter shape.
 
 ### Divergences from spec, and why
 

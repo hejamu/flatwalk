@@ -44,11 +44,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-L", type=int, default=8)
     parser.add_argument("-n", "--n-trials", type=int, default=1500,
-                        help="trials to record (= frames in the movie)")
+                        help="trials to record")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("-o", "--output", type=Path,
                         default=Path("examples/wl_trajectory.mp4"))
     parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--n-frames", type=int, default=None,
+                        help="if given (and < n-trials), choose this many "
+                             "log-spaced frames so the playback appears to "
+                             "speed up as the histogram approaches flatness")
+    parser.add_argument("--n-check", type=int, default=None,
+                        help="WL flatness-check period during the demo "
+                             "(default: 2*n_trials, i.e. no halve fires)")
+    parser.add_argument("--flatness", type=float, default=0.7,
+                        help="WL flatness threshold during the demo (default 0.7)")
     parser.add_argument("--cache-dir", type=Path,
                         default=EXAMPLES / "cache",
                         help="Beale cache directory (read-only here)")
@@ -84,14 +93,16 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"No Beale cache for L={args.L}; rendering without reference.")
 
-    # WL run with trial recorder. n_check=2*n_trials so no halve fires
-    # within the recorded window — the walker stays at ln_f=1 throughout
-    # so each visit contributes a large +1 to g, making the build-up
-    # dramatic.
+    # WL run with trial recorder. By default n_check=2*n_trials so no
+    # halve fires within the window — useful for the "every step" feel
+    # at ln_f=1. Override --n-check to a smaller value to see halvings
+    # within the recorded window (the renderer detects ln_f drops and
+    # resets H accordingly).
+    n_check = args.n_check if args.n_check is not None else 2 * args.n_trials
     cfg = WLConfig(
         bin_scheme=scheme, beta=0.0,
-        flatness_threshold=0.95,
-        n_check=2 * args.n_trials,
+        flatness_threshold=args.flatness,
+        n_check=n_check,
         ln_f_initial=1.0, ln_f_final=1e-30,
     )
     driver = WLDriver(cfg)
@@ -110,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s")
 
-    print(f"Rendering {len(recorder.t)} frames → {args.output} ...")
+    n_frames = args.n_frames if args.n_frames is not None else len(recorder.t)
+    print(f"Rendering {n_frames} frames ({'log-spaced' if args.n_frames else 'every trial'}) "
+          f"→ {args.output} ...")
     t0 = time.perf_counter()
     make_trajectory_movie(
         recorder.as_arrays(),
@@ -119,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         log_g_exact=log_g_exact,
         title=f"Wang-Landau trajectory   |   L={args.L} Ising",
         fps=args.fps,
+        n_frames=args.n_frames,
     )
     print(f"  rendered in {time.perf_counter() - t0:.1f}s → {args.output}")
     return 0
