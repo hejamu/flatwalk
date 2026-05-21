@@ -164,10 +164,10 @@ histogram and `log g(E)` build up from zero, with the current bin
 highlighted in red and the walker's `E(t)` plotted at the bottom:
 
 ```bash
-# Long run, log-spaced playback (early trials slow, late trials fast):
+# Long converged run (~3.5 min video, watches g(E) reach the exact reference):
 .venv/bin/python examples/wl_trajectory_demo.py -L 8 \
-    -n 100000 --n-check 2000 --flatness 0.5 \
-    --n-frames 600 --fps 30 \
+    -n 1000000 --n-check 2000 --flatness 0.8 \
+    --schedule "1500:1,30000:20,1000000:300" --fps 30 \
     -o wl_trajectory_flatness.mp4
 
 # Short run, every-trial playback:
@@ -177,22 +177,29 @@ highlighted in red and the walker's `E(t)` plotted at the bottom:
 
 The committed
 [examples/wl_trajectory_flatness.mp4](examples/wl_trajectory_flatness.mp4)
-is ~15 s at 30 fps. With `--n-frames 600` and a 100,000-trial run, the
-600 frame indices are log-spaced in trial number — early frames hit
-consecutive trials (you can watch the walker step bin-by-bin), and
-later frames skip through hundreds of trials each, so the playback
-visibly "speeds up" as the histogram approaches flatness.
+is ~3:25 at 30 fps, animating a 1,000,000-trial L=8 run with 10
+f-stage halves. The playback is **piecewise-constant in speed**, set
+by the `--schedule` flag: every trial for the first 1,500 (50 s of
+video), every 20th trial through 30,000 (~47 s), then every 300th
+trial through 1,000,000 (~108 s, leaving ≥10 s for the final 900K→1M
+window). The user can swap to a log-spaced schedule with `--n-frames N`.
 
 **Cumulative H, stacked by f-stage.** The middle panel shows the
 cumulative visit count (no reset — the bias lives in `g`, not `H`).
 Bar segments are stacked and colored by which f-stage produced each
-visit, using a viridis ramp. With five halves firing, six stages
-contribute: stage 0 (dark purple, bottom, ~32K trials at `ln_f=1`)
-dominates, with thinner segments (cyan → green → yellow) layered above
-as `ln_f` decays. The bars themselves grow approximately uniformly
-once the bias is well-calibrated, so the "flatness" is visible as the
-top edge of the stacked bars approaching a flat line. The red vertical
+visit, using a viridis ramp. With ten halves firing in this run,
+eleven stages contribute: stage 0 (dark purple, bottom, ~58K trials at
+`ln_f=1`) dominates, with thinner segments (cyan → green → yellow)
+layered above as `ln_f` decays. The top edge of the stacked bars
+approaching a flat line is the "flatness" signal. The red vertical
 line marks the walker's current bin.
+
+**Per-stage H overlay.** A dark-orange line on the right-hand axis
+shows the **current-stage** ``H(E)`` — this is the histogram the
+algorithm actually evaluates against `flatness_threshold` to decide
+when to halve. The line resets to zero at every halve and rebuilds
+within the new stage; its `min/mean` ratio (the flatness number) is
+printed in the title alongside the configured threshold (default 0.8).
 
 ### Divergences from spec, and why
 

@@ -192,6 +192,27 @@ def test_make_trajectory_movie_handles_multiple_stages(tmp_path):
     assert out.exists() and out.stat().st_size > 2_000
 
 
+def test_build_frame_indices_from_schedule():
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+
+    # Three-segment schedule on a 1000-trial run.
+    schedule = [(10, 1), (100, 5), (1000, 50)]
+    idx = wl_viewer.build_frame_indices_from_schedule(schedule, 1000)
+    # Segment 1: trials 0..9 every trial = 10 frames
+    assert list(idx[:10]) == list(range(10))
+    # Segment 2: trials 10..95 every 5 = 18 frames, last is 95
+    assert idx[10] == 10
+    assert idx[27] == 95
+    # Segment 3: trials 100..950 every 50 = 18 frames, last is 950
+    assert idx[28] == 100
+    assert idx[45] == 950
+    # n-1 anchor
+    assert idx[-1] == 999
+    assert (np.diff(idx) > 0).all()  # strictly increasing
+
+
 def test_make_trajectory_movie_log_spaced_subsampling(tmp_path):
     """With n_frames << len(history), the renderer must pick log-spaced indices."""
     import os
