@@ -166,8 +166,8 @@ highlighted in red and the walker's `E(t)` plotted at the bottom:
 ```bash
 # Long converged run (~3.5 min video, watches g(E) reach the exact reference):
 .venv/bin/python examples/wl_trajectory_demo.py -L 8 \
-    -n 1000000 --n-check 2000 --flatness 0.8 \
-    --schedule "1500:1,30000:20,1000000:300" --fps 30 \
+    -n 1100000 --n-check 2000 --flatness 0.8 \
+    --schedule "1500:1,30000:20,1100000:300" --fps 30 \
     -o wl_trajectory_flatness.mp4
 
 # Short run, every-trial playback:
@@ -177,18 +177,19 @@ highlighted in red and the walker's `E(t)` plotted at the bottom:
 
 The committed
 [examples/wl_trajectory_flatness.mp4](examples/wl_trajectory_flatness.mp4)
-is ~3:25 at 30 fps, animating a 1,000,000-trial L=8 run with 10
+is ~3:36 at 30 fps, animating a 1,100,000-trial L=8 run with 11
 f-stage halves. The playback is **piecewise-constant in speed**, set
 by the `--schedule` flag: every trial for the first 1,500 (50 s of
 video), every 20th trial through 30,000 (~47 s), then every 300th
-trial through 1,000,000 (~108 s, leaving ≥10 s for the final 900K→1M
-window). The user can swap to a log-spaced schedule with `--n-frames N`.
+trial through 1,100,000 (~119 s, leaving ≥10 s for each of the final
+900K→1M and 1M→1.1M windows). The user can swap to a log-spaced
+schedule with `--n-frames N`.
 
 **Cumulative H, stacked by f-stage.** The middle panel shows the
 cumulative visit count (no reset — the bias lives in `g`, not `H`).
 Bar segments are stacked and colored by which f-stage produced each
-visit, using a viridis ramp. With ten halves firing in this run,
-eleven stages contribute: stage 0 (dark purple, bottom, ~58K trials at
+visit, using a viridis ramp. With eleven halves firing in this run,
+twelve stages contribute: stage 0 (dark purple, bottom, ~58K trials at
 `ln_f=1`) dominates, with thinner segments (cyan → green → yellow)
 layered above as `ln_f` decays. The top edge of the stacked bars
 approaching a flat line is the "flatness" signal. The red vertical
