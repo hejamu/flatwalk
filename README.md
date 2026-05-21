@@ -8,17 +8,18 @@ The contract between flatwalk and the user is the following:
 | You supply | Type | What flatwalk does with it |
 | --- | --- | --- |
 | `bin_scheme` | `BinScheme` instance | maps `Q → bin index` |
-| `initial_state` | anything (opaque) | passed through to your callbacks |
 | `energy_fn(state)` | `→ float` | the `−β·ΔE` term in WL acceptance (skip when `β=0` and `Q=E`) |
 | `order_parameter_fn(state)` | `→ float \| np.ndarray` | the quantity `g(Q)` is estimated over (vector for ≥2D) |
 | `propose_move_fn(state, rng)` | `→ (new_state, log_proposal_ratio)` | one Markov step |
 
-`state` is whatever your callbacks recognise — a tuple, dataclass,
-numpy array, torch tensor, anything — flatwalk never inspects it. The
-current scope is the 1D order-parameter case validated against the 2D
-Ising model. ≥2D order parameters, replica-exchange WL, and batched
-walkers for GPU-backed energy evaluation are not yet implemented but
-the architecture is set up so they drop in additively — see
+`state` is opaque to flatwalk — whatever your callbacks recognise:
+tuple, dataclass, numpy array, torch tensor, anything. You hand one
+initial `state` object to `driver.run(...)` to start; from there the
+callbacks do all state manipulation. The current scope is the 1D
+order-parameter case validated against the 2D Ising model. ≥2D order
+parameters, replica-exchange WL, and batched walkers for GPU-backed
+energy evaluation are not yet implemented, but the architecture is set
+up so they drop in additively — see
 [docs/storyline.md](docs/storyline.md) for the design rationale and
 roadmap.
 
