@@ -55,30 +55,50 @@ def _parse_schedule(s: str) -> list[tuple[int, int]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-L", type=int, default=8)
-    parser.add_argument("-n", "--n-trials", type=int, default=1500,
-                        help="trials to record")
+    parser.add_argument("-n", "--n-trials", type=int, default=1500, help="trials to record")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("-o", "--output", type=Path,
-                        default=Path("examples/wl_trajectory.mp4"))
+    parser.add_argument(
+        "-o", "--output", type=Path, default=Path("examples/wl_trajectory.mp4")
+    )
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--n-frames", type=int, default=None,
-                        help="if given (and < n-trials), choose this many "
-                             "log-spaced frames so the playback appears to "
-                             "speed up as the histogram approaches flatness")
-    parser.add_argument("--schedule", type=str, default=None,
-                        help="piecewise frame schedule "
-                             "'t_end1:stride1,t_end2:stride2,...' "
-                             "(overrides --n-frames; e.g. '1500:1,30000:20,1000000:280')")
-    parser.add_argument("--n-check", type=int, default=None,
-                        help="WL flatness-check period during the demo "
-                             "(default: 2*n_trials, i.e. no halve fires)")
-    parser.add_argument("--flatness", type=float, default=0.8,
-                        help="WL flatness threshold during the demo (default 0.8)")
-    parser.add_argument("--cache-dir", type=Path,
-                        default=EXAMPLES / "cache",
-                        help="Beale cache directory (read-only here)")
-    parser.add_argument("--no-reference", action="store_true",
-                        help="skip the Beale exact-reference overlay")
+    parser.add_argument(
+        "--n-frames",
+        type=int,
+        default=None,
+        help="if given (and < n-trials), choose this many "
+        "log-spaced frames so the playback appears to "
+        "speed up as the histogram approaches flatness",
+    )
+    parser.add_argument(
+        "--schedule",
+        type=str,
+        default=None,
+        help="piecewise frame schedule "
+        "'t_end1:stride1,t_end2:stride2,...' "
+        "(overrides --n-frames; e.g. '1500:1,30000:20,1000000:280')",
+    )
+    parser.add_argument(
+        "--n-check",
+        type=int,
+        default=None,
+        help="WL flatness-check period during the demo "
+        "(default: 2*n_trials, i.e. no halve fires)",
+    )
+    parser.add_argument(
+        "--flatness",
+        type=float,
+        default=0.8,
+        help="WL flatness threshold during the demo (default 0.8)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=EXAMPLES / "cache",
+        help="Beale cache directory (read-only here)",
+    )
+    parser.add_argument(
+        "--no-reference", action="store_true", help="skip the Beale exact-reference overlay"
+    )
     args = parser.parse_args(argv)
 
     os.environ.setdefault("MPLBACKEND", "Agg")
@@ -120,10 +140,12 @@ def main(argv: list[str] | None = None) -> int:
     # resets H accordingly).
     n_check = args.n_check if args.n_check is not None else 2 * args.n_trials
     cfg = WLConfig(
-        bin_scheme=scheme, beta=0.0,
+        bin_scheme=scheme,
+        beta=0.0,
         flatness_threshold=args.flatness,
         n_check=n_check,
-        ln_f_initial=1.0, ln_f_final=1e-30,
+        ln_f_initial=1.0,
+        ln_f_final=1e-30,
     )
     driver = WLDriver(cfg)
 
@@ -155,8 +177,10 @@ def main(argv: list[str] | None = None) -> int:
         max_trials=args.n_trials,
         trial_callback=recorder,
     )
-    print(f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s "
-          f"(+ {len(recorder.states):,} spin snapshots)")
+    print(
+        f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s "
+        f"(+ {len(recorder.states):,} spin snapshots)"
+    )
 
     if frame_schedule is not None:
         print(f"Rendering with piecewise schedule {frame_schedule} → {args.output} ...")

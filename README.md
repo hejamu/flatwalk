@@ -36,7 +36,7 @@ callbacks do all state manipulation.
 
 ### Planned
 
-See [docs/storyline.md](docs/storyline.md) for design rationale and
+See [docs/src/storyline.md](docs/src/storyline.md) for design rationale and
 line-count estimates.
 
 - **Batched walkers.** `BatchedCallbacks` + `WalkerBatch` so ≥2

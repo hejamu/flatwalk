@@ -16,14 +16,14 @@ import pytest
 from flatwalk import Bin1D, WLConfig, WLDriver
 from flatwalk.io import load_checkpoint, save_checkpoint
 
-
 # ---- save/load round-trip --------------------------------------------------
+
 
 def test_save_load_round_trip(tmp_path: Path):
     path = tmp_path / "cp.npz"
     g = np.linspace(0.0, 1.0, 10)
     H = np.arange(10, dtype=np.int64)
-    visited = (H > 0)
+    visited = H > 0
     edges = np.linspace(-0.5, 9.5, 11)
     centers = 0.5 * (edges[:-1] + edges[1:])
     walker_state = np.array([1, 2, 3, 4], dtype=np.int8)  # tests ndarray boxing
@@ -34,12 +34,20 @@ def test_save_load_round_trip(tmp_path: Path):
 
     save_checkpoint(
         path,
-        g=g, H=H, visited=visited,
-        bin_edges=edges, bin_centers=centers,
-        n_bins=10, t_total=12345, n_f_stages=3,
-        ln_f=0.0625, in_1overt=False,
-        bin_current=4, walker_energy=-7.5,
-        walker_state=walker_state, rng_state=rng_state,
+        g=g,
+        H=H,
+        visited=visited,
+        bin_edges=edges,
+        bin_centers=centers,
+        n_bins=10,
+        t_total=12345,
+        n_f_stages=3,
+        ln_f=0.0625,
+        in_1overt=False,
+        bin_current=4,
+        walker_energy=-7.5,
+        walker_state=walker_state,
+        rng_state=rng_state,
     )
 
     loaded = load_checkpoint(path)
@@ -64,12 +72,20 @@ def test_save_is_atomic_no_tmp_left(tmp_path: Path):
     path = tmp_path / "cp.npz"
     save_checkpoint(
         path,
-        g=np.zeros(3), H=np.zeros(3, dtype=np.int64), visited=np.zeros(3, dtype=bool),
-        bin_edges=np.linspace(0, 1, 4), bin_centers=np.array([1/6, 1/2, 5/6]),
-        n_bins=3, t_total=0, n_f_stages=0,
-        ln_f=1.0, in_1overt=False,
-        bin_current=0, walker_energy=0.0,
-        walker_state=0, rng_state=np.random.default_rng(0).bit_generator.state,
+        g=np.zeros(3),
+        H=np.zeros(3, dtype=np.int64),
+        visited=np.zeros(3, dtype=bool),
+        bin_edges=np.linspace(0, 1, 4),
+        bin_centers=np.array([1 / 6, 1 / 2, 5 / 6]),
+        n_bins=3,
+        t_total=0,
+        n_f_stages=0,
+        ln_f=1.0,
+        in_1overt=False,
+        bin_current=0,
+        walker_energy=0.0,
+        walker_state=0,
+        rng_state=np.random.default_rng(0).bit_generator.state,
     )
     # No leftover .tmp sidecar
     assert path.exists()
@@ -82,17 +98,26 @@ def test_save_appends_npz_extension(tmp_path: Path):
     base = tmp_path / "foo"
     save_checkpoint(
         base,
-        g=np.zeros(3), H=np.zeros(3, dtype=np.int64), visited=np.zeros(3, dtype=bool),
-        bin_edges=np.linspace(0, 1, 4), bin_centers=np.array([1/6, 1/2, 5/6]),
-        n_bins=3, t_total=0, n_f_stages=0,
-        ln_f=1.0, in_1overt=False,
-        bin_current=0, walker_energy=0.0,
-        walker_state=0, rng_state=np.random.default_rng(0).bit_generator.state,
+        g=np.zeros(3),
+        H=np.zeros(3, dtype=np.int64),
+        visited=np.zeros(3, dtype=bool),
+        bin_edges=np.linspace(0, 1, 4),
+        bin_centers=np.array([1 / 6, 1 / 2, 5 / 6]),
+        n_bins=3,
+        t_total=0,
+        n_f_stages=0,
+        ln_f=1.0,
+        in_1overt=False,
+        bin_current=0,
+        walker_energy=0.0,
+        walker_state=0,
+        rng_state=np.random.default_rng(0).bit_generator.state,
     )
     assert (tmp_path / "foo.npz").exists()
 
 
 # ---- bit-identical resume --------------------------------------------------
+
 
 def _tiny_system():
     """Tiny 5-state random walk; same as test_core to keep behavior consistent."""
@@ -125,7 +150,7 @@ def test_resume_is_bit_identical(tmp_path: Path):
         bin_scheme=sys["scheme"],
         n_check=200,
         ln_f_initial=1.0,
-        ln_f_final=1e-30,        # never converge by ln_f
+        ln_f_final=1e-30,  # never converge by ln_f
         flatness_threshold=0.01,  # easy
     )
     result_a = WLDriver(cfg_a).run(
@@ -164,12 +189,12 @@ def test_resume_is_bit_identical(tmp_path: Path):
     cfg_b2 = WLConfig(
         bin_scheme=sys["scheme"],
         n_check=200,
-        ln_f_initial=1.0,         # irrelevant after resume
+        ln_f_initial=1.0,  # irrelevant after resume
         ln_f_final=1e-30,
         flatness_threshold=0.01,
     )
     result_b2 = WLDriver(cfg_b2).run(
-        initial_state=None,        # ignored on resume
+        initial_state=None,  # ignored on resume
         energy_fn=sys["energy_fn"],
         order_parameter_fn=sys["order_parameter_fn"],
         propose_move_fn=sys["propose_move_fn"],

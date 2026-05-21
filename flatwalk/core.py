@@ -22,9 +22,10 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 
@@ -36,8 +37,8 @@ from .walker import Walker
 logger = logging.getLogger(__name__)
 
 EnergyFn = Callable[[Any], float]
-OrderParamFn = Callable[[Any], Union[float, np.ndarray]]
-ProposeMoveFn = Callable[[Any, np.random.Generator], Tuple[Any, float]]
+OrderParamFn = Callable[[Any], float | np.ndarray]
+ProposeMoveFn = Callable[[Any, np.random.Generator], tuple[Any, float]]
 ProgressCallback = Callable[[ProgressSnapshot], None]
 # Per-trial hook. Called after every accepted/rejected trial with the trial
 # number, the post-trial `Walker` (state / bin_current / energy / rng), the
@@ -49,6 +50,7 @@ TrialCallback = Callable[[int, Walker, float, bool], None]
 # ---------------------------------------------------------------------------
 # Config and result types
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class WLConfig:
@@ -70,9 +72,9 @@ class WLConfig:
     n_check: int = 10_000
     ln_f_initial: float = 1.0
     ln_f_final: float = 1e-8
-    checkpoint_path: Optional[Path] = None
+    checkpoint_path: Path | None = None
     checkpoint_every_t: int = 1_000_000
-    trace_path: Optional[Path] = None
+    trace_path: Path | None = None
     log_level: str = "INFO"
 
     def __post_init__(self) -> None:
@@ -110,13 +112,14 @@ class WLResult:
     in_1overt: bool = False
     bin_current: int = -1
     walker_energy: float = float("nan")
-    rng_state: Optional[dict] = None
+    rng_state: dict | None = None
     extra: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
 # Pure helpers (testable in isolation)
 # ---------------------------------------------------------------------------
+
 
 def compute_flatness(H: np.ndarray, visited: np.ndarray) -> float:
     """Return ``min(H[visited]) / mean(H[visited])``, or 0.0 if degenerate.
@@ -134,9 +137,7 @@ def compute_flatness(H: np.ndarray, visited: np.ndarray) -> float:
     return float(hv.min()) / mean
 
 
-def attempt_halve(
-    ln_f: float, t: int, in_1overt: bool
-) -> Tuple[float, bool]:
+def attempt_halve(ln_f: float, t: int, in_1overt: bool) -> tuple[float, bool]:
     """Apply one f-stage transition.
 
     In the standard regime, halve ``ln_f``. If the halved value would be
@@ -167,6 +168,7 @@ def attempt_halve(
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
+
 
 class WLDriver:
     """Order-parameter-agnostic Wang-Landau sampler."""
@@ -229,12 +231,12 @@ class WLDriver:
         energy_fn: EnergyFn,
         order_parameter_fn: OrderParamFn,
         propose_move_fn: ProposeMoveFn,
-        max_trials: Optional[int] = None,
-        rng: Optional[np.random.Generator] = None,
-        exchange_handler: Optional[ExchangeHandler] = None,
-        resume_from: Optional[Path] = None,
-        progress_callback: Optional[ProgressCallback] = None,
-        trial_callback: Optional[TrialCallback] = None,
+        max_trials: int | None = None,
+        rng: np.random.Generator | None = None,
+        exchange_handler: ExchangeHandler | None = None,
+        resume_from: Path | None = None,
+        progress_callback: ProgressCallback | None = None,
+        trial_callback: TrialCallback | None = None,
     ) -> WLResult:
         """Run a Wang-Landau simulation. Returns the final ``WLResult``.
 
@@ -247,7 +249,7 @@ class WLDriver:
         Out-of-range proposals are rejected; g/H/visited are still updated
         at the current bin (reflecting-boundary convention).
         """
-        from .io import save_checkpoint, load_checkpoint  # local to avoid cycle
+        from .io import load_checkpoint, save_checkpoint  # local to avoid cycle
 
         cfg = self.config
         n = self.bin_scheme.n_bins
@@ -305,7 +307,12 @@ class WLDriver:
 
         logger.info(
             "WL run start: n_bins=%d, ln_f=%.3g → %.3g, n_check=%d, t0=%d, in_1overt=%s",
-            n, ln_f, cfg.ln_f_final, cfg.n_check, t, in_1overt,
+            n,
+            ln_f,
+            cfg.ln_f_final,
+            cfg.n_check,
+            t,
+            in_1overt,
         )
 
         with trace_writer:
@@ -320,8 +327,15 @@ class WLDriver:
 
                     # ---- one trial ----
                     accepted = self._trial_step(
-                        walker, g, H, visited, ln_f,
-                        energy_fn, order_parameter_fn, propose_move_fn, cfg.beta,
+                        walker,
+                        g,
+                        H,
+                        visited,
+                        ln_f,
+                        energy_fn,
+                        order_parameter_fn,
+                        propose_move_fn,
+                        cfg.beta,
                     )
                     t += 1
                     if trial_callback is not None:
@@ -344,14 +358,20 @@ class WLDriver:
                                 logger.info(
                                     "f-stage %d→%d at t=%d: ln_f %.6g → %.6g, "
                                     "flatness=%.3f, n_visited=%d, dt_stage=%.2fs",
-                                    n_f_stages, n_f_stages + 1, t,
-                                    ln_f, new_ln_f, flatness, int(visited.sum()),
+                                    n_f_stages,
+                                    n_f_stages + 1,
+                                    t,
+                                    ln_f,
+                                    new_ln_f,
+                                    flatness,
+                                    int(visited.sum()),
                                     wall_stage,
                                 )
                                 if new_in_1overt and not in_1overt:
                                     logger.info(
                                         "Entering 1/t-WL regime at t=%d, ln_f=%.6g",
-                                        t, new_ln_f,
+                                        t,
+                                        new_ln_f,
                                     )
                                 ln_f = new_ln_f
                                 in_1overt = new_in_1overt
@@ -375,39 +395,48 @@ class WLDriver:
                         else:
                             min_H = max_H = 0
                             mean_H = 0.0
-                        trace_writer.write(TraceRow(
-                            t=t,
-                            ln_f=ln_f,
-                            flatness=flatness,
-                            acceptance_rate=walker.acceptance_rate(),
-                            min_H_visited=min_H,
-                            max_H_visited=max_H,
-                            mean_H_visited=mean_H,
-                            n_visited=int(visited.sum()),
-                            in_1overt=in_1overt,
-                            stage_index=n_f_stages,
-                        ))
+                        trace_writer.write(
+                            TraceRow(
+                                t=t,
+                                ln_f=ln_f,
+                                flatness=flatness,
+                                acceptance_rate=walker.acceptance_rate(),
+                                min_H_visited=min_H,
+                                max_H_visited=max_H,
+                                mean_H_visited=mean_H,
+                                n_visited=int(visited.sum()),
+                                in_1overt=in_1overt,
+                                stage_index=n_f_stages,
+                            )
+                        )
                         if not wrote_stage_transition:
                             logger.debug(
                                 "check at t=%d: ln_f=%.3g flatness=%.3f "
                                 "min/mean/max H = %d/%.1f/%d, accept=%.3f",
-                                t, ln_f, flatness,
-                                min_H, mean_H, max_H, walker.acceptance_rate(),
+                                t,
+                                ln_f,
+                                flatness,
+                                min_H,
+                                mean_H,
+                                max_H,
+                                walker.acceptance_rate(),
                             )
 
                         if progress_callback is not None:
-                            progress_callback(ProgressSnapshot(
-                                t=t,
-                                ln_f=ln_f,
-                                in_1overt=in_1overt,
-                                n_f_stages=n_f_stages,
-                                g=g.copy(),
-                                H=H.copy(),
-                                visited=visited.copy(),
-                                bin_centers=self.bin_scheme.centers,
-                                flatness=flatness,
-                                acceptance_rate=walker.acceptance_rate(),
-                            ))
+                            progress_callback(
+                                ProgressSnapshot(
+                                    t=t,
+                                    ln_f=ln_f,
+                                    in_1overt=in_1overt,
+                                    n_f_stages=n_f_stages,
+                                    g=g.copy(),
+                                    H=H.copy(),
+                                    visited=visited.copy(),
+                                    bin_centers=self.bin_scheme.centers,
+                                    flatness=flatness,
+                                    acceptance_rate=walker.acceptance_rate(),
+                                )
+                            )
 
                         walker.reset_counters()
 
@@ -415,7 +444,9 @@ class WLDriver:
                     if cfg.checkpoint_path is not None and t % cfg.checkpoint_every_t == 0:
                         save_checkpoint(
                             Path(cfg.checkpoint_path),
-                            g=g, H=H, visited=visited,
+                            g=g,
+                            H=H,
+                            visited=visited,
                             bin_edges=self.bin_scheme.edges,
                             bin_centers=self.bin_scheme.centers,
                             n_bins=n,
@@ -446,7 +477,9 @@ class WLDriver:
         if cfg.checkpoint_path is not None:
             save_checkpoint(
                 Path(cfg.checkpoint_path),
-                g=g, H=H, visited=visited,
+                g=g,
+                H=H,
+                visited=visited,
                 bin_edges=self.bin_scheme.edges,
                 bin_centers=self.bin_scheme.centers,
                 n_bins=n,
@@ -463,7 +496,13 @@ class WLDriver:
         logger.info(
             "WL run end: converged=%s interrupted=%s t=%d ln_f=%.6g n_f_stages=%d "
             "n_visited=%d/%d",
-            converged, interrupted, t, ln_f, n_f_stages, int(visited.sum()), n,
+            converged,
+            interrupted,
+            t,
+            ln_f,
+            n_f_stages,
+            int(visited.sum()),
+            n,
         )
 
         return WLResult(
@@ -488,6 +527,7 @@ class WLDriver:
 # ---------------------------------------------------------------------------
 # RNG state helpers (used by both core and io)
 # ---------------------------------------------------------------------------
+
 
 def _capture_rng(rng: np.random.Generator) -> dict:
     """Snapshot a Generator's bit-generator state for serialization."""

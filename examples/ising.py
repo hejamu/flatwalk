@@ -16,8 +16,7 @@ Single-spin-flip is symmetric, so ``propose_move_fn`` returns
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Tuple
+from collections.abc import Callable
 
 import numpy as np
 
@@ -26,8 +25,13 @@ def total_energy(spins: np.ndarray, J: float = 1.0) -> float:
     """``E = -J Σ_<ij> σ_i σ_j`` on a periodic L×L lattice (each bond once)."""
     right = np.roll(spins, -1, axis=1)
     down = np.roll(spins, -1, axis=0)
-    return float(-J * ((spins.astype(np.int32) * right.astype(np.int32))
-                       + (spins.astype(np.int32) * down.astype(np.int32))).sum())
+    return float(
+        -J
+        * (
+            (spins.astype(np.int32) * right.astype(np.int32))
+            + (spins.astype(np.int32) * down.astype(np.int32))
+        ).sum()
+    )
 
 
 def random_state(L: int, rng: np.random.Generator, J: float = 1.0) -> tuple:
@@ -51,7 +55,7 @@ def make_ising_callbacks(L: int, J: float = 1.0) -> dict[str, Callable]:
         # For "WL on E" the order parameter coincides with the energy.
         return state[1]
 
-    def propose_move_fn(state, rng: np.random.Generator) -> Tuple[tuple, float]:
+    def propose_move_fn(state, rng: np.random.Generator) -> tuple[tuple, float]:
         spins, E = state
         i = int(rng.integers(0, L))
         j = int(rng.integers(0, L))
@@ -81,6 +85,7 @@ def make_ising_callbacks(L: int, J: float = 1.0) -> dict[str, Callable]:
 # ---------------------------------------------------------------------------
 # Bin scheme convenience: bin centres on allowed Ising energies (step 4J)
 # ---------------------------------------------------------------------------
+
 
 def ising_energy_bins(L: int, J: float = 1.0):
     """Return (low, high, n_bins) for a Bin1D placing centres on allowed energies.

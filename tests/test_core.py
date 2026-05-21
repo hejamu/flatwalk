@@ -11,7 +11,6 @@ Three layers of test:
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 
 import numpy as np
@@ -21,12 +20,12 @@ from flatwalk import Bin1D, Walker, WLConfig, WLDriver
 from flatwalk.core import attempt_halve, compute_flatness
 from flatwalk.diagnostics import read_trace
 
-
 # ---------------------------------------------------------------------------
 # Reusable "tiny random walk" system: integer state ∈ {0..n-1}, propose ±1,
 # zero energy, order parameter = state. Out-of-range proposals exercise the
 # spec §1.3 reflecting-boundary convention.
 # ---------------------------------------------------------------------------
+
 
 def _tiny_system(n_states: int = 10):
     scheme = Bin1D(-0.5, n_states - 0.5, n_states)
@@ -47,6 +46,7 @@ def _tiny_system(n_states: int = 10):
 # ---------------------------------------------------------------------------
 # 1. Pure helpers
 # ---------------------------------------------------------------------------
+
 
 class TestComputeFlatness:
     def test_no_visited_returns_zero(self):
@@ -110,6 +110,7 @@ class TestAttemptHalve:
 # 2. _trial_step mechanics
 # ---------------------------------------------------------------------------
 
+
 class TestTrialStep:
     def _setup(self, propose):
         sys = _tiny_system(5)
@@ -119,8 +120,7 @@ class TestTrialStep:
         g = np.zeros(scheme.n_bins, dtype=np.float64)
         H = np.zeros(scheme.n_bins, dtype=np.int64)
         visited = np.zeros(scheme.n_bins, dtype=bool)
-        walker = Walker(state=2, bin_current=2, energy=0.0,
-                        rng=np.random.default_rng(7))
+        walker = Walker(state=2, bin_current=2, energy=0.0, rng=np.random.default_rng(7))
         visited[walker.bin_current] = True
         return driver, sys, walker, g, H, visited
 
@@ -136,7 +136,11 @@ class TestTrialStep:
         visited[0] = True
 
         accepted = driver._trial_step(
-            walker, g, H, visited, ln_f=0.5,
+            walker,
+            g,
+            H,
+            visited,
+            ln_f=0.5,
             energy_fn=sys["energy_fn"],
             order_parameter_fn=sys["order_parameter_fn"],
             propose_move_fn=propose,
@@ -164,7 +168,11 @@ class TestTrialStep:
         g[walker.bin_current + 1] = 0.0
 
         accepted = driver._trial_step(
-            walker, g, H, visited, ln_f=0.1,
+            walker,
+            g,
+            H,
+            visited,
+            ln_f=0.1,
             energy_fn=sys["energy_fn"],
             order_parameter_fn=sys["order_parameter_fn"],
             propose_move_fn=propose,
@@ -187,7 +195,11 @@ class TestTrialStep:
         g[walker.bin_current + 1] = 20.0
 
         accepted = driver._trial_step(
-            walker, g, H, visited, ln_f=0.1,
+            walker,
+            g,
+            H,
+            visited,
+            ln_f=0.1,
             energy_fn=sys["energy_fn"],
             order_parameter_fn=sys["order_parameter_fn"],
             propose_move_fn=propose,
@@ -200,6 +212,7 @@ class TestTrialStep:
 
     def test_log_proposal_ratio_enters_acceptance(self):
         """A large positive log_proposal_ratio forces acceptance."""
+
         def propose(state, rng):
             return state + 1, 50.0  # huge boost
 
@@ -208,7 +221,11 @@ class TestTrialStep:
         g[walker.bin_current + 1] = 30.0  # would normally reject
 
         accepted = driver._trial_step(
-            walker, g, H, visited, ln_f=0.1,
+            walker,
+            g,
+            H,
+            visited,
+            ln_f=0.1,
             energy_fn=sys["energy_fn"],
             order_parameter_fn=sys["order_parameter_fn"],
             propose_move_fn=propose,
@@ -222,22 +239,29 @@ class TestTrialStep:
 # 3. End-to-end run mechanics
 # ---------------------------------------------------------------------------
 
+
 class TestRun:
     def test_reproducibility(self):
         sys = _tiny_system(5)
         cfg = WLConfig(bin_scheme=sys["scheme"], n_check=50, ln_f_final=1e-30)
         d1 = WLDriver(cfg)
         d2 = WLDriver(cfg)
-        r1 = d1.run(initial_state=sys["initial_state"],
-                    energy_fn=sys["energy_fn"],
-                    order_parameter_fn=sys["order_parameter_fn"],
-                    propose_move_fn=sys["propose_move_fn"],
-                    rng=np.random.default_rng(123), max_trials=2000)
-        r2 = d2.run(initial_state=sys["initial_state"],
-                    energy_fn=sys["energy_fn"],
-                    order_parameter_fn=sys["order_parameter_fn"],
-                    propose_move_fn=sys["propose_move_fn"],
-                    rng=np.random.default_rng(123), max_trials=2000)
+        r1 = d1.run(
+            initial_state=sys["initial_state"],
+            energy_fn=sys["energy_fn"],
+            order_parameter_fn=sys["order_parameter_fn"],
+            propose_move_fn=sys["propose_move_fn"],
+            rng=np.random.default_rng(123),
+            max_trials=2000,
+        )
+        r2 = d2.run(
+            initial_state=sys["initial_state"],
+            energy_fn=sys["energy_fn"],
+            order_parameter_fn=sys["order_parameter_fn"],
+            propose_move_fn=sys["propose_move_fn"],
+            rng=np.random.default_rng(123),
+            max_trials=2000,
+        )
         np.testing.assert_array_equal(r1.g, r2.g)
         np.testing.assert_array_equal(r1.H, r2.H)
         assert r1.t_total == r2.t_total
@@ -272,7 +296,7 @@ class TestRun:
             bin_scheme=sys["scheme"],
             n_check=100,
             ln_f_initial=1.0,
-            ln_f_final=0.4,           # converge after 2 halves (1.0 → 0.5 → 0.25)
+            ln_f_final=0.4,  # converge after 2 halves (1.0 → 0.5 → 0.25)
             flatness_threshold=0.01,  # virtually always satisfied
         )
         result = WLDriver(cfg).run(
@@ -448,8 +472,10 @@ class TestRun:
     def test_g_normalization_keeps_min_at_zero_after_halve(self):
         sys = _tiny_system(3)
         cfg = WLConfig(
-            bin_scheme=sys["scheme"], n_check=100,
-            ln_f_initial=1.0, ln_f_final=0.4,
+            bin_scheme=sys["scheme"],
+            n_check=100,
+            ln_f_initial=1.0,
+            ln_f_final=0.4,
             flatness_threshold=0.01,
         )
         result = WLDriver(cfg).run(

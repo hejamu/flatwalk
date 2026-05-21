@@ -84,6 +84,7 @@ def test_average_log_g_leaves_unvisited_at_neg_inf():
     -inf gives ``exp(-inf) = 0`` (no contribution). The script's
     `wl_to_n_E_dict` and thermodynamics chain depend on this.
     """
+
     class _R:
         def __init__(self, g, visited):
             self.g = g
@@ -103,8 +104,10 @@ def test_average_log_g_leaves_unvisited_at_neg_inf():
 def test_snapshot_recorder_log_spaced_sampling():
     """Recorder should retain ~n_frames snapshots spread log-spaced in t."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
+
     from flatwalk.diagnostics import ProgressSnapshot
 
     rec = wl_viewer.SnapshotRecorder(n_frames=100)
@@ -114,11 +117,20 @@ def test_snapshot_recorder_log_spaced_sampling():
     visited = np.ones(5, dtype=bool)
     # Simulate 50_000 checks at t = 1, 2, ..., 50000
     for t in range(1, 50001):
-        rec(ProgressSnapshot(
-            t=t, ln_f=1.0 / t, in_1overt=False, n_f_stages=0,
-            g=g, H=H, visited=visited, bin_centers=bin_centers,
-            flatness=0.5, acceptance_rate=0.5,
-        ))
+        rec(
+            ProgressSnapshot(
+                t=t,
+                ln_f=1.0 / t,
+                in_1overt=False,
+                n_f_stages=0,
+                g=g,
+                H=H,
+                visited=visited,
+                bin_centers=bin_centers,
+                flatness=0.5,
+                acceptance_rate=0.5,
+            )
+        )
     # log-spaced sampling should give a moderate (not all 50K) frame count
     assert 10 <= len(rec.snapshots) <= 200, len(rec.snapshots)
     # And the early dynamics should be over-represented relative to late
@@ -131,13 +143,14 @@ def test_snapshot_recorder_log_spaced_sampling():
 def test_trial_recorder_buffers_correctly():
     """TrialRecorder records every trial up to max_records, then stops."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
+
     from flatwalk import Walker
 
     rec = wl_viewer.TrialRecorder(max_records=50)
-    walker = Walker(state=None, bin_current=0, energy=0.0,
-                    rng=np.random.default_rng(0))
+    walker = Walker(state=None, bin_current=0, energy=0.0, rng=np.random.default_rng(0))
     for k in range(1, 200):
         walker.bin_current = k % 5
         walker.energy = float(k)
@@ -152,8 +165,10 @@ def test_trial_recorder_captures_state_at_specific_t():
     """With a `state_capturer` and `capture_at` set, the recorder
     snapshots state only at the requested trials."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
+
     from flatwalk import Walker
 
     capture_at = {3, 7, 11}
@@ -162,8 +177,7 @@ def test_trial_recorder_captures_state_at_specific_t():
         state_capturer=lambda w: ("snap", w.bin_current),
         capture_at=capture_at,
     )
-    walker = Walker(state=None, bin_current=0, energy=0.0,
-                    rng=np.random.default_rng(0))
+    walker = Walker(state=None, bin_current=0, energy=0.0, rng=np.random.default_rng(0))
     for k in range(1, 16):
         walker.bin_current = k * 10
         rec(k, walker, 0.5, True)
@@ -175,6 +189,7 @@ def test_trial_recorder_captures_state_at_specific_t():
 def test_make_trajectory_movie_renders_gif(tmp_path):
     """make_trajectory_movie must produce a valid GIF from a tiny history."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
 
@@ -189,7 +204,10 @@ def test_make_trajectory_movie_renders_gif(tmp_path):
     }
     out = tmp_path / "traj.gif"
     wl_viewer.make_trajectory_movie(
-        history, out, bin_centers=bin_centers, fps=4,
+        history,
+        out,
+        bin_centers=bin_centers,
+        fps=4,
     )
     assert out.exists() and out.stat().st_size > 2_000
 
@@ -199,6 +217,7 @@ def test_make_trajectory_movie_handles_multiple_stages(tmp_path):
     bars without raising — the renderer should detect the stages and
     accumulate H *across* them (no reset)."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
 
@@ -216,13 +235,17 @@ def test_make_trajectory_movie_handles_multiple_stages(tmp_path):
     }
     out = tmp_path / "stages.gif"
     wl_viewer.make_trajectory_movie(
-        history, out, bin_centers=bin_centers, fps=4,
+        history,
+        out,
+        bin_centers=bin_centers,
+        fps=4,
     )
     assert out.exists() and out.stat().st_size > 2_000
 
 
 def test_build_frame_indices_from_schedule():
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
 
@@ -245,6 +268,7 @@ def test_build_frame_indices_from_schedule():
 def test_make_trajectory_movie_log_spaced_subsampling(tmp_path):
     """With n_frames << len(history), the renderer must pick log-spaced indices."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
 
@@ -261,7 +285,11 @@ def test_make_trajectory_movie_log_spaced_subsampling(tmp_path):
     }
     out = tmp_path / "logspace.gif"
     wl_viewer.make_trajectory_movie(
-        history, out, bin_centers=bin_centers, fps=5, n_frames=30,
+        history,
+        out,
+        bin_centers=bin_centers,
+        fps=5,
+        n_frames=30,
     )
     assert out.exists() and out.stat().st_size > 2_000
 
@@ -269,21 +297,29 @@ def test_make_trajectory_movie_log_spaced_subsampling(tmp_path):
 def test_make_movie_renders_gif(tmp_path):
     """make_movie should produce a valid GIF from a tiny snapshot list."""
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
+
     from flatwalk.diagnostics import ProgressSnapshot
 
     bin_centers = np.linspace(-10, 10, 21)
     snapshots = []
     for k in range(5):
-        snapshots.append(ProgressSnapshot(
-            t=100 * (k + 1), ln_f=0.5 ** k, in_1overt=False, n_f_stages=k,
-            g=np.linspace(0, k + 1, 21),
-            H=np.full(21, 10 * (k + 1), dtype=np.int64),
-            visited=np.ones(21, dtype=bool),
-            bin_centers=bin_centers,
-            flatness=0.9, acceptance_rate=0.5,
-        ))
+        snapshots.append(
+            ProgressSnapshot(
+                t=100 * (k + 1),
+                ln_f=0.5**k,
+                in_1overt=False,
+                n_f_stages=k,
+                g=np.linspace(0, k + 1, 21),
+                H=np.full(21, 10 * (k + 1), dtype=np.int64),
+                visited=np.ones(21, dtype=bool),
+                bin_centers=bin_centers,
+                flatness=0.9,
+                acceptance_rate=0.5,
+            )
+        )
     out = tmp_path / "movie.gif"
     wl_viewer.make_movie(snapshots, out, bin_centers=bin_centers, fps=4)
     assert out.exists() and out.stat().st_size > 5_000
@@ -296,19 +332,25 @@ def test_live_viewer_runs_headless(tmp_path):
     without a window.
     """
     import os
+
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer  # noqa: E402  (after env var)
+
     from flatwalk.diagnostics import ProgressSnapshot
 
     centers = np.linspace(-10.0, 10.0, 21)
     v = wl_viewer.LiveViewer(centers, flatness_threshold=0.9, update_every_s=0.0)
     snap = ProgressSnapshot(
-        t=1000, ln_f=0.25, in_1overt=False, n_f_stages=2,
+        t=1000,
+        ln_f=0.25,
+        in_1overt=False,
+        n_f_stages=2,
         g=np.linspace(0, 5, 21),
         H=np.arange(21, dtype=np.int64) * 10,
         visited=np.ones(21, dtype=bool),
         bin_centers=centers,
-        flatness=0.92, acceptance_rate=0.5,
+        flatness=0.92,
+        acceptance_rate=0.5,
     )
     v.callback(snap)
     out = tmp_path / "v.png"

@@ -58,10 +58,10 @@ import ising  # noqa: E402
 
 from flatwalk import Bin1D, WLConfig, WLDriver  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Beale cache (avoid recomputing 55s for L=8 on every script run)
 # ---------------------------------------------------------------------------
+
 
 def load_or_compute_beale(L: int, cache_dir: Path | None) -> dict[int, int]:
     """Beale's g(E) for the L×L Ising torus, with on-disk caching.
@@ -75,7 +75,7 @@ def load_or_compute_beale(L: int, cache_dir: Path | None) -> dict[int, int]:
     cache = cache_dir / f"beale_L{L}.tsv"
     if cache.exists():
         g: dict[int, int] = {}
-        with open(cache, "r", encoding="utf-8") as fh:
+        with open(cache, encoding="utf-8") as fh:
             for line in fh:
                 if not line.strip() or line.startswith("#") or line.startswith("E\t"):
                     continue
@@ -85,12 +85,13 @@ def load_or_compute_beale(L: int, cache_dir: Path | None) -> dict[int, int]:
     t0 = time.perf_counter()
     g = beale.beale_g_E(L)
     with open(cache, "w", encoding="utf-8") as fh:
-        fh.write(f"# Beale g(E) for L={L} 2D Ising torus; Σ n(E) = 2^{L*L}\n")
+        fh.write(f"# Beale g(E) for L={L} 2D Ising torus; Σ n(E) = 2^{L * L}\n")
         fh.write("E\tn\n")
         for E in sorted(g.keys()):
             fh.write(f"{E}\t{g[E]}\n")
-    print(f"  Beale L={L} computed in {time.perf_counter() - t0:.1f}s and cached "
-          f"to {cache}")
+    print(
+        f"  Beale L={L} computed in {time.perf_counter() - t0:.1f}s and cached to {cache}"
+    )
     return g
 
 
@@ -98,9 +99,14 @@ def load_or_compute_beale(L: int, cache_dir: Path | None) -> dict[int, int]:
 # WL run
 # ---------------------------------------------------------------------------
 
+
 def run_wl(
-    L: int, ln_f_final: float, seed: int, trace_path: Path | None,
-    n_check: int = 1_000, flatness_threshold: float = 0.95,
+    L: int,
+    ln_f_final: float,
+    seed: int,
+    trace_path: Path | None,
+    n_check: int = 1_000,
+    flatness_threshold: float = 0.95,
     progress_callback=None,
 ):
     cb = ising.make_ising_callbacks(L)
@@ -130,10 +136,12 @@ def run_wl(
         progress_callback=progress_callback,
     )
     dt = time.perf_counter() - t0
-    print(f"  seed {seed}: {result.t_total:,} trials in {dt:.1f}s "
-          f"({result.t_total / dt / 1e3:.0f} kT/s), "
-          f"{result.n_f_stages} f-stages, converged={result.converged}, "
-          f"in_1overt={result.in_1overt}")
+    print(
+        f"  seed {seed}: {result.t_total:,} trials in {dt:.1f}s "
+        f"({result.t_total / dt / 1e3:.0f} kT/s), "
+        f"{result.n_f_stages} f-stages, converged={result.converged}, "
+        f"in_1overt={result.in_1overt}"
+    )
     return result, scheme
 
 
@@ -167,6 +175,7 @@ def average_log_g(results: list) -> tuple[np.ndarray, np.ndarray]:
 # ---------------------------------------------------------------------------
 # Comparison and thermodynamics
 # ---------------------------------------------------------------------------
+
 
 def compare_g(log_g_WL, visited, scheme, g_exact_dict):
     """Compare a (possibly averaged) WL ``log g`` against Beale's exact g(E).
@@ -263,44 +272,82 @@ def wl_to_n_E_dict(centers, log_g, exact_total_for_normalization):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-L", type=int, default=8, help="lattice size (default 8)")
-    parser.add_argument("--ln-f-final", type=float, default=1e-8,
-                        help="WL convergence threshold (default 1e-8)")
+    parser.add_argument(
+        "--ln-f-final",
+        type=float,
+        default=1e-8,
+        help="WL convergence threshold (default 1e-8)",
+    )
     parser.add_argument("--seed", type=int, default=0, help="RNG seed")
-    parser.add_argument("--cache-dir", type=Path,
-                        default=EXAMPLES / "cache",
-                        help="directory for caching the Beale result")
-    parser.add_argument("--trace", type=Path, default=None,
-                        help="optional TSV trace output path")
-    parser.add_argument("--quick", action="store_true",
-                        help="quick smoke run (ln-f-final=1e-5; does NOT satisfy spec)")
-    parser.add_argument("--n-check", type=int, default=1_000,
-                        help="WL flatness check period (default 1000; "
-                             "tighter than the spec default 10000 to enter the "
-                             "1/t regime earlier)")
-    parser.add_argument("--flatness", type=float, default=0.95,
-                        help="WL flatness threshold (default 0.95; "
-                             "spec default is 0.8)")
-    parser.add_argument("--n-seeds", type=int, default=3,
-                        help="number of independent WL runs to average "
-                             "(default 3; --n-seeds 1 = spec literal)")
-    parser.add_argument("--viewer", action="store_true",
-                        help="show a live matplotlib viewer during the WL run "
-                             "(forces --n-seeds 1; matplotlib must be installed)")
-    parser.add_argument("--viewer-out", type=Path, default=None,
-                        help="save the final viewer figure to this PNG/PDF/SVG path. "
-                             "Implies --viewer; works headlessly under MPLBACKEND=Agg")
-    parser.add_argument("--viewer-movie", type=Path, default=None,
-                        help="record snapshots during the WL run and render a video "
-                             "(.mp4/.mov/.webm via ffmpeg; .gif via Pillow) on completion. "
-                             "Forces --n-seeds 1")
-    parser.add_argument("--movie-frames", type=int, default=400,
-                        help="target number of frames in the movie "
-                             "(log-spaced in t; default 400)")
-    parser.add_argument("--movie-fps", type=int, default=20,
-                        help="movie playback frame rate (default 20)")
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=EXAMPLES / "cache",
+        help="directory for caching the Beale result",
+    )
+    parser.add_argument(
+        "--trace", type=Path, default=None, help="optional TSV trace output path"
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="quick smoke run (ln-f-final=1e-5; does NOT satisfy spec)",
+    )
+    parser.add_argument(
+        "--n-check",
+        type=int,
+        default=1_000,
+        help="WL flatness check period (default 1000; "
+        "tighter than the spec default 10000 to enter the "
+        "1/t regime earlier)",
+    )
+    parser.add_argument(
+        "--flatness",
+        type=float,
+        default=0.95,
+        help="WL flatness threshold (default 0.95; spec default is 0.8)",
+    )
+    parser.add_argument(
+        "--n-seeds",
+        type=int,
+        default=3,
+        help="number of independent WL runs to average "
+        "(default 3; --n-seeds 1 = spec literal)",
+    )
+    parser.add_argument(
+        "--viewer",
+        action="store_true",
+        help="show a live matplotlib viewer during the WL run "
+        "(forces --n-seeds 1; matplotlib must be installed)",
+    )
+    parser.add_argument(
+        "--viewer-out",
+        type=Path,
+        default=None,
+        help="save the final viewer figure to this PNG/PDF/SVG path. "
+        "Implies --viewer; works headlessly under MPLBACKEND=Agg",
+    )
+    parser.add_argument(
+        "--viewer-movie",
+        type=Path,
+        default=None,
+        help="record snapshots during the WL run and render a video "
+        "(.mp4/.mov/.webm via ffmpeg; .gif via Pillow) on completion. "
+        "Forces --n-seeds 1",
+    )
+    parser.add_argument(
+        "--movie-frames",
+        type=int,
+        default=400,
+        help="target number of frames in the movie (log-spaced in t; default 400)",
+    )
+    parser.add_argument(
+        "--movie-fps", type=int, default=20, help="movie playback frame rate (default 20)"
+    )
     args = parser.parse_args(argv)
     if args.viewer_out is not None or args.viewer_movie is not None:
         args.viewer = True
@@ -312,8 +359,9 @@ def main(argv: list[str] | None = None) -> int:
         print("[viewer mode] forcing --n-seeds 1 for live visualization")
         args.n_seeds = 1
 
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s",
-                        datefmt="%H:%M:%S")
+    logging.basicConfig(
+        level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%H:%M:%S"
+    )
 
     seeds = [args.seed + k for k in range(max(1, args.n_seeds))]
     print(f"=== flatwalk Ising L={args.L} validation ===")
@@ -323,8 +371,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Loading exact n(E) (Beale recursion) for L={args.L}...")
     t0 = time.perf_counter()
     g_exact = load_or_compute_beale(args.L, args.cache_dir)
-    print(f"  → {len(g_exact)} distinct energies, "
-          f"Σ n(E) = 2^{args.L*args.L} (loaded in {time.perf_counter()-t0:.1f}s)")
+    print(
+        f"  → {len(g_exact)} distinct energies, "
+        f"Σ n(E) = 2^{args.L * args.L} (loaded in {time.perf_counter() - t0:.1f}s)"
+    )
 
     # Optional live viewer and/or movie recorder (single-seed only).
     viewer = None
@@ -334,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
     movie_log_g_exact = None
     if args.viewer:
         from wl_viewer import LiveViewer, SnapshotRecorder
+
         low, high, n_bins = ising.ising_energy_bins(args.L)
         movie_centers = np.arange(
             low + (high - low) / (2 * n_bins), high, (high - low) / n_bins
@@ -353,15 +404,19 @@ def main(argv: list[str] | None = None) -> int:
             progress_callback = recorder
 
     # WL runs
-    print(f"  Running Wang-Landau (n_check={args.n_check}, "
-          f"flatness={args.flatness:.2f})...")
+    print(
+        f"  Running Wang-Landau (n_check={args.n_check}, flatness={args.flatness:.2f})..."
+    )
     results = []
     scheme = None
     for s in seeds:
         r, sch = run_wl(
-            args.L, args.ln_f_final, s,
+            args.L,
+            args.ln_f_final,
+            s,
             args.trace if (s == seeds[0]) else None,
-            n_check=args.n_check, flatness_threshold=args.flatness,
+            n_check=args.n_check,
+            flatness_threshold=args.flatness,
             progress_callback=progress_callback,
         )
         results.append(r)
@@ -371,8 +426,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Compare
     cmp = compare_g(log_g_avg, visited_avg, scheme, g_exact)
-    print(f"  Compared on {cmp['n_compared']} central bins "
-          f"(visited & non-gap, excluding the two extremes):")
+    print(
+        f"  Compared on {cmp['n_compared']} central bins "
+        f"(visited & non-gap, excluding the two extremes):"
+    )
     print(f"    max  ε = {cmp['max_eps']:.4f}  (pass < 0.05)")
     print(f"    mean ε = {cmp['mean_eps']:.4f}  (pass < 0.01)")
 
@@ -380,20 +437,25 @@ def main(argv: list[str] | None = None) -> int:
     T_grid = np.linspace(1.0, 4.0, 31)
     E_exact, CV_exact = thermodynamics(scheme.centers, g_exact, T_grid)
     n_E_WL = wl_to_n_E_dict(
-        scheme.centers, log_g_avg,
+        scheme.centers,
+        log_g_avg,
         exact_total_for_normalization=sum(g_exact.values()),
     )
     E_WL, CV_WL = thermodynamics(scheme.centers, n_E_WL, T_grid)
     E_rel = np.abs(E_WL - E_exact) / np.abs(E_exact + 1e-12)
     max_E_rel = float(E_rel.max())
-    print(f"    max |⟨E⟩_WL − ⟨E⟩_exact| / |⟨E⟩_exact| = {max_E_rel*100:.3f}%  "
-          f"(pass < 0.5%)")
+    print(
+        f"    max |⟨E⟩_WL − ⟨E⟩_exact| / |⟨E⟩_exact| = {max_E_rel * 100:.3f}%  "
+        f"(pass < 0.5%)"
+    )
 
     T_peak_exact = float(T_grid[CV_exact.argmax()])
     T_peak_WL = float(T_grid[CV_WL.argmax()])
     T_peak_err = abs(T_peak_WL - T_peak_exact) / T_peak_exact
-    print(f"    C_V peak T: exact = {T_peak_exact:.3f}, WL = {T_peak_WL:.3f}, "
-          f"rel err = {T_peak_err*100:.3f}%  (pass < 2%)")
+    print(
+        f"    C_V peak T: exact = {T_peak_exact:.3f}, WL = {T_peak_WL:.3f}, "
+        f"rel err = {T_peak_err * 100:.3f}%  (pass < 2%)"
+    )
 
     # Pass / fail
     criteria = {
@@ -417,8 +479,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if recorder is not None and args.viewer_movie is not None:
         from wl_viewer import make_movie
-        print(f"  Movie: rendering {len(recorder.snapshots)} frames → "
-              f"{args.viewer_movie} ...")
+
+        print(
+            f"  Movie: rendering {len(recorder.snapshots)} frames → {args.viewer_movie} ..."
+        )
         t0 = time.perf_counter()
         make_movie(
             recorder.snapshots,
@@ -429,8 +493,7 @@ def main(argv: list[str] | None = None) -> int:
             title=f"Wang-Landau   |   L={args.L} Ising",
             fps=args.movie_fps,
         )
-        print(f"  Movie: saved in {time.perf_counter() - t0:.1f}s → "
-              f"{args.viewer_movie}")
+        print(f"  Movie: saved in {time.perf_counter() - t0:.1f}s → {args.viewer_movie}")
 
     return 0 if overall else 1
 

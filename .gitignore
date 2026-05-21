@@ -4,9 +4,11 @@ __pycache__/
 build/
 dist/
 .pytest_cache/
+.tox/
 .venv/
 venv/
 .coverage
+docs/build/
 *.npz
 *.tsv
 !tests/data/*.tsv
