@@ -1,26 +1,13 @@
 # flatwalk
 
-**There is no existing Wang-Landau implementation that is simultaneously
-order-parameter agnostic and energy-backend agnostic.** Mature WL tools
-are tightly coupled to a particle-based state representation and a curated
-catalogue of potentials; plugging in a custom Hamiltonian, a non-particle
-model, or a modern framework (PyTorch, JAX, …) means subclassing in the
-host language and recompiling. `flatwalk` makes the cut at callable
-boundaries: WL bookkeeping on one side, physics on the other, joined by
-five user-supplied callables — no inheritance, no recompile, no
-host-language constraint on how `state` or the energy backend is
-structured. The architecture also carries forward additively to ≥2D
-order parameters and replica-exchange WL — see
-[docs/storyline.md](docs/storyline.md) for the full design rationale
-and the batched-walkers roadmap.
-
-## Why flatwalk
+flatwalk is an enhanced sampling library implementing flat-histogram
+methods while being order-parameter and energy-backend agnostic.
+flatwalk does the sampling, the user provides the system to sample.
 
 Wang-Landau sampling estimates the density of states `g(Q)` of an
 arbitrary order parameter `Q` by random-walking in `Q`-space with a
-bias that is refined on a flat-histogram schedule, converging to the
-true density. The contract between `flatwalk` and your physics is
-small:
+bias refined on a flat-histogram schedule, converging to the true
+density. The contract between flatwalk and the user is the following:
 
 | You supply | Type | What flatwalk does with it |
 | --- | --- | --- |
@@ -30,13 +17,14 @@ small:
 | `order_parameter_fn(state)` | `→ float \| np.ndarray` | the quantity `g(Q)` is estimated over (vector for ≥2D) |
 | `propose_move_fn(state, rng)` | `→ (new_state, log_proposal_ratio)` | one Markov step |
 
-`state` can be a tuple, dataclass, numpy array, torch tensor, anything
-your callbacks recognise — flatwalk never inspects it. The 1D
-order-parameter case is validated against the 2D Ising model; 2D
-`g(Q1, Q2)` sampling and replica-exchange WL are out of scope here, but
-the architecture (`BinScheme` ABC, `Walker` ownership, `ExchangeHandler`
-hook) is set up so they drop in additively — see the architectural
-notes below.
+`state` is whatever your callbacks recognise — a tuple, dataclass,
+numpy array, torch tensor, anything — flatwalk never inspects it. The
+current scope is the 1D order-parameter case validated against the 2D
+Ising model. ≥2D order parameters, replica-exchange WL, and batched
+walkers for GPU-backed energy evaluation are not yet implemented but
+the architecture is set up so they drop in additively — see
+[docs/storyline.md](docs/storyline.md) for the design rationale and
+roadmap.
 
 ## Install
 
