@@ -29,7 +29,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 import numpy as np
 
 from .binning import BinScheme
-from .diagnostics import TraceRow, TraceWriter
+from .diagnostics import ProgressSnapshot, TraceRow, TraceWriter
 from .exchange import ExchangeHandler
 from .walker import Walker
 
@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], Union[float, np.ndarray]]
 ProposeMoveFn = Callable[[Any, np.random.Generator], Tuple[Any, float]]
+ProgressCallback = Callable[[ProgressSnapshot], None]
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +228,7 @@ class WLDriver:
         rng: Optional[np.random.Generator] = None,
         exchange_handler: Optional[ExchangeHandler] = None,
         resume_from: Optional[Path] = None,
+        progress_callback: Optional[ProgressCallback] = None,
     ) -> WLResult:
         """Run a Wang-Landau simulation. Returns the final ``WLResult``.
 
@@ -384,6 +386,21 @@ class WLDriver:
                                 t, ln_f, flatness,
                                 min_H, mean_H, max_H, walker.acceptance_rate(),
                             )
+
+                        if progress_callback is not None:
+                            progress_callback(ProgressSnapshot(
+                                t=t,
+                                ln_f=ln_f,
+                                in_1overt=in_1overt,
+                                n_f_stages=n_f_stages,
+                                g=g.copy(),
+                                H=H.copy(),
+                                visited=visited.copy(),
+                                bin_centers=self.bin_scheme.centers,
+                                flatness=flatness,
+                                acceptance_rate=walker.acceptance_rate(),
+                            ))
+
                         walker.reset_counters()
 
                     # ---- periodic checkpoint ----

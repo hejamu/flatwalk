@@ -2,7 +2,7 @@
 
 from .binning import Bin1D, BinScheme
 from .core import WLConfig, WLDriver, WLResult
-from .diagnostics import TraceRow, TraceWriter, read_trace
+from .diagnostics import ProgressSnapshot, TraceRow, TraceWriter, read_trace
 from .exchange import ExchangeHandler, ExchangeResult
 from .walker import Walker
 
@@ -11,6 +11,7 @@ __all__ = [
     "BinScheme",
     "ExchangeHandler",
     "ExchangeResult",
+    "ProgressSnapshot",
     "TraceRow",
     "TraceWriter",
     "Walker",

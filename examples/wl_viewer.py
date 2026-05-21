@@ -1,0 +1,283 @@
+"""Live matplotlib viewer for a Wang-Landau run.
+
+Usage
+-----
+Pass `LiveViewer(...).callback` as the ``progress_callback`` argument of
+`WLDriver.run`::
+
+    from wl_viewer import LiveViewer
+    viewer = LiveViewer(scheme.centers, flatness_threshold=0.95)
+    result = driver.run(..., progress_callback=viewer.callback)
+    viewer.keep_open()  # block until the user closes the figure
+
+The viewer shows three live panels stacked vertically:
+
+1. **log g(E)** — the WL density of states (shifted so its minimum over
+   visited bins is 0). Optionally overlaid with a reference curve
+   (e.g. Beale's exact ``log n(E)`` for Ising).
+2. **H(E)** — current-stage histogram. Bars drop visibly each f-stage
+   transition (because ``H`` resets in the standard regime); a dashed
+   line marks ``flatness_threshold × mean(H)``.
+3. **ln_f and flatness vs t** — log-log ``ln_f`` time series with the
+   ``1/t`` reference line dashed (the 1/t-WL asymptote), plus the
+   flatness on a right-hand axis. Vertical lines mark f-stage transitions
+   and the 1/t regime entry.
+
+The viewer rate-limits drawing to ``update_every_s`` (default 0.1 s) so
+the WL run doesn't pay matplotlib overhead on every check.
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Optional
+
+import numpy as np
+
+# Defer matplotlib import to the constructor so this module can be imported
+# in a headless context for testing without a display backend.
+
+
+class LiveViewer:
+    """Three-panel matplotlib viewer that updates as a WL run progresses."""
+
+    def __init__(
+        self,
+        bin_centers: np.ndarray,
+        *,
+        flatness_threshold: float = 0.95,
+        log_g_exact: Optional[np.ndarray] = None,
+        update_every_s: float = 0.1,
+        title: str = "Wang-Landau live",
+    ) -> None:
+        import matplotlib.pyplot as plt
+
+        self._plt = plt
+        plt.ion()
+
+        self._bin_centers = np.asarray(bin_centers, dtype=np.float64)
+        # Bar width: use the median bin spacing.
+        bin_width = float(np.median(np.diff(self._bin_centers))) if len(self._bin_centers) > 1 else 1.0
+        self._bin_width = 0.9 * bin_width
+        self._flatness_threshold = flatness_threshold
+        self._update_every_s = update_every_s
+        self._title = title
+
+        # Per-snapshot time series (always recorded; drawing rate-limited).
+        self._t_hist: list[int] = []
+        self._lnf_hist: list[float] = []
+        self._flat_hist: list[float] = []
+        self._stage_transitions: list[tuple[int, int]] = []  # (t, new_stage)
+        self._one_over_t_t: Optional[int] = None
+        self._last_n_f_stages = 0
+        self._last_draw_time = 0.0
+
+        # Reference curve (optional).
+        self._log_g_exact = (
+            np.asarray(log_g_exact, dtype=np.float64) if log_g_exact is not None else None
+        )
+
+        # Figure + axes
+        self._fig, axes = plt.subplots(
+            3, 1, figsize=(11, 9),
+            gridspec_kw={"height_ratios": [3, 2, 2]},
+        )
+        self._ax_g, self._ax_H, self._ax_t = axes
+
+        # Panel 1: log g(E)
+        (self._line_g,) = self._ax_g.plot(
+            [], [], color="C0", lw=2.0, label="WL log g (shifted)",
+        )
+        if self._log_g_exact is not None:
+            finite = np.isfinite(self._log_g_exact)
+            ref = self._log_g_exact.copy()
+            if finite.any():
+                ref[finite] -= ref[finite].min()
+            (self._line_g_ref,) = self._ax_g.plot(
+                self._bin_centers[finite], ref[finite],
+                color="k", lw=1.0, ls="--", alpha=0.6, label="reference (exact)",
+            )
+        else:
+            self._line_g_ref = None
+        self._ax_g.set_ylabel("log g(E)  (shifted)")
+        self._ax_g.legend(loc="upper right")
+        self._ax_g.grid(alpha=0.3)
+
+        # Panel 2: H(E)
+        self._bars_H = self._ax_H.bar(
+            self._bin_centers, np.zeros_like(self._bin_centers),
+            width=self._bin_width, color="C2", alpha=0.85,
+        )
+        self._line_H_threshold = self._ax_H.axhline(
+            0.0, color="C3", ls="--", alpha=0.7,
+            label=f"{flatness_threshold:.2f}·mean(H)",
+        )
+        self._ax_H.set_ylabel("H (current stage)")
+        self._ax_H.legend(loc="upper right")
+        self._ax_H.grid(alpha=0.3)
+
+        # Panel 3: ln_f + flatness over time
+        (self._line_lnf,) = self._ax_t.plot(
+            [], [], color="C0", lw=1.5, label="ln_f",
+        )
+        # 1/t reference (dashed): drawn once we have data
+        (self._line_oneovert,) = self._ax_t.plot(
+            [], [], color="k", lw=1.0, ls="--", alpha=0.5, label="1/t",
+        )
+        self._ax_t.set_yscale("log")
+        self._ax_t.set_xscale("log")
+        # Placeholder limits so the log scale has positive data even before
+        # the first snapshot arrives (matplotlib's tight_layout refuses to
+        # render otherwise).
+        self._ax_t.set_xlim(1, 10)
+        self._ax_t.set_ylim(1e-10, 2.0)
+        self._ax_t.set_xlabel("t (trials)")
+        self._ax_t.set_ylabel("ln_f")
+        self._ax_t.grid(alpha=0.3, which="both")
+        self._ax_t.legend(loc="upper right")
+
+        self._ax_flat = self._ax_t.twinx()
+        (self._line_flat,) = self._ax_flat.plot(
+            [], [], color="C1", lw=1.2, alpha=0.8, label="flatness",
+        )
+        self._ax_flat.axhline(
+            flatness_threshold, color="C3", ls=":", alpha=0.5,
+        )
+        self._ax_flat.set_ylim(0.0, 1.05)
+        self._ax_flat.set_ylabel("flatness", color="C1")
+        self._ax_flat.tick_params(axis="y", labelcolor="C1")
+
+        self._fig.suptitle(title)
+        self._fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+        self._fig.canvas.draw_idle()
+        try:
+            self._fig.canvas.flush_events()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ API
+
+    @property
+    def callback(self):
+        """Pass this as ``progress_callback=...`` to `WLDriver.run`."""
+        return self._on_snapshot
+
+    def save(self, path) -> None:
+        """Save the current figure to ``path`` (any format matplotlib supports)."""
+        self._draw_final()
+        self._fig.savefig(str(path), dpi=110, bbox_inches="tight")
+
+    def keep_open(self) -> None:
+        """Block until the user closes the figure window.
+
+        Returns immediately on a non-interactive (e.g. ``Agg``) backend, so
+        the same script can drive a live window in an interactive session
+        or a save-only run in CI/headless contexts.
+        """
+        import matplotlib
+
+        self._plt.ioff()
+        self._draw_final()
+        if matplotlib.get_backend().lower() == "agg":
+            return
+        self._plt.show()
+
+    # ---------------------------------------------------------------- impl
+
+    def _on_snapshot(self, snap) -> None:
+        # Always record time-series points (cheap).
+        self._t_hist.append(snap.t)
+        self._lnf_hist.append(snap.ln_f)
+        self._flat_hist.append(snap.flatness)
+        if snap.n_f_stages > self._last_n_f_stages:
+            self._stage_transitions.append((snap.t, snap.n_f_stages))
+            self._last_n_f_stages = snap.n_f_stages
+        if snap.in_1overt and self._one_over_t_t is None:
+            self._one_over_t_t = snap.t
+
+        # Rate-limit drawing.
+        now = time.perf_counter()
+        if now - self._last_draw_time < self._update_every_s:
+            return
+        self._last_draw_time = now
+        self._draw(snap)
+
+    def _draw(self, snap) -> None:
+        # ---- Panel 1: log g(E) ----
+        visited = snap.visited
+        if visited.any():
+            shifted = snap.g.copy()
+            shifted[visited] -= shifted[visited].min()
+            xs = self._bin_centers[visited]
+            ys = shifted[visited]
+            self._line_g.set_data(xs, ys)
+            ymin, ymax = float(ys.min()), float(ys.max())
+            if self._log_g_exact is not None:
+                ref_y = self._log_g_exact[visited] - self._log_g_exact[visited].min()
+                ymax = max(ymax, float(ref_y.max()))
+            self._ax_g.set_xlim(self._bin_centers.min(), self._bin_centers.max())
+            self._ax_g.set_ylim(ymin - 0.5, ymax * 1.05 + 0.5)
+
+        # ---- Panel 2: H(E) ----
+        for bar, h in zip(self._bars_H, snap.H):
+            bar.set_height(float(h))
+        if visited.any() and snap.H[visited].mean() > 0:
+            mean_H = float(snap.H[visited].mean())
+            self._line_H_threshold.set_ydata(
+                [self._flatness_threshold * mean_H, self._flatness_threshold * mean_H]
+            )
+        max_h = float(snap.H.max()) if snap.H.size > 0 else 1.0
+        self._ax_H.set_ylim(0, max(1.0, max_h * 1.1))
+        self._ax_H.set_xlim(self._bin_centers.min(), self._bin_centers.max())
+        regime = "1/t-WL" if snap.in_1overt else f"standard (stage {snap.n_f_stages})"
+        self._ax_H.set_xlabel(f"E   —   {regime},  accept = {snap.acceptance_rate:.2f}")
+
+        # ---- Panel 3: ln_f and flatness vs t ----
+        t_arr = np.asarray(self._t_hist)
+        lnf_arr = np.asarray(self._lnf_hist)
+        flat_arr = np.asarray(self._flat_hist)
+        self._line_lnf.set_data(t_arr, lnf_arr)
+        self._line_flat.set_data(t_arr, flat_arr)
+        if t_arr.size > 1:
+            # 1/t reference matches the asymptote of the 1/t-WL regime.
+            one_over_t = 1.0 / t_arr.astype(np.float64)
+            self._line_oneovert.set_data(t_arr, one_over_t)
+            self._ax_t.set_xlim(max(1, int(t_arr.min())), int(t_arr.max() * 1.1) + 1)
+            self._ax_t.set_ylim(min(lnf_arr.min(), 1e-9) * 0.5, max(lnf_arr.max(), 1.0) * 2)
+
+        # Vertical markers for f-stage transitions (drawn fresh each time).
+        # Cheap because there are at most ~30.
+        for collection in list(self._ax_t.collections):
+            collection.remove()
+        if self._stage_transitions:
+            xs = [t for t, _ in self._stage_transitions]
+            self._ax_t.vlines(
+                xs, 1e-30, 1e30, color="gray", lw=0.5, alpha=0.4, zorder=-1,
+            )
+        if self._one_over_t_t is not None:
+            self._ax_t.vlines(
+                [self._one_over_t_t], 1e-30, 1e30,
+                color="C3", lw=1.0, alpha=0.7, zorder=-1,
+            )
+
+        # ---- title ----
+        self._fig.suptitle(
+            f"{self._title}    t = {snap.t:,}    "
+            f"ln_f = {snap.ln_f:.3e}    "
+            f"flatness = {snap.flatness:.3f}    "
+            f"n_visited = {int(snap.visited.sum())}/{snap.visited.size}"
+        )
+
+        self._fig.canvas.draw_idle()
+        try:
+            self._fig.canvas.flush_events()
+        except Exception:
+            pass
+
+    def _draw_final(self) -> None:
+        """One last full draw before blocking. Uses the most recent snapshot."""
+        if not self._t_hist:
+            return
+        # Re-issue draw on stored arrays with no snapshot-specific bits
+        # (the bars/g lines were last updated in _draw, which is fine).
+        self._fig.canvas.draw_idle()
