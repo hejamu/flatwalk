@@ -390,9 +390,11 @@ def make_trajectory_movie(
 
     1. **log g(E)** building up across the visited bins (one bin gets
        ``+ln_f`` per trial). Optional dashed reference overlay.
-    2. **H(E)** bars rising as visits accumulate, with the **current bin
-       highlighted** in red. ``H`` is reset whenever the recorded ``ln_f``
-       drops (f-stage halve), exactly mirroring the WL driver.
+    2. **H(E)** is *cumulative* across the whole run — bars only ever
+       grow, segments are stacked and **colored by f-stage** so the
+       breakdown into early (large-``ln_f``) and late (small-``ln_f``)
+       contributions is visible. A red vertical line marks the current
+       bin.
     3. **E vs t** time series — the walker's energy trajectory, with the
        current step marked as a red dot.
 
@@ -411,6 +413,7 @@ def make_trajectory_movie(
     matplotlib.use("Agg", force=True)
     import matplotlib.animation as animation
     import matplotlib.pyplot as plt
+    from matplotlib import cm
 
     output_path = Path(output_path)
     bin_centers = np.asarray(bin_centers, dtype=np.float64)
@@ -427,57 +430,67 @@ def make_trajectory_movie(
     if n_recorded == 0:
         raise ValueError("history is empty")
 
+    # ---- stage label per trial: every ln_f drop = new f-stage ----
+    if n_recorded > 1:
+        halve_mask = np.diff(ln_f_arr) < -1e-30
+        stage_at_trial = np.concatenate(
+            ([0], np.cumsum(halve_mask).astype(np.int64))
+        )
+    else:
+        stage_at_trial = np.zeros(1, dtype=np.int64)
+    n_stages = int(stage_at_trial[-1]) + 1
+
     # ---- choose frame indices ----
     if n_frames is None or n_frames >= n_recorded:
         frame_indices = np.arange(n_recorded, dtype=np.int64)
     else:
-        # Geometric spacing of trial indices: early frames hit consecutive
-        # trials (because t_i+1 = ceil(t_i * r) ≈ t_i + 1 while r-1 < 1/t_i),
-        # then progressively skip more.
         log_idx = np.linspace(0.0, np.log(n_recorded), n_frames)
         raw = np.exp(log_idx).astype(np.int64) - 1
         frame_indices = np.unique(np.clip(raw, 0, n_recorded - 1))
 
-    # ---- precompute cumulative g, H per displayed frame ----
-    # Replay every trial up to each frame index; reset H at any ln_f drop.
-    cum_g = np.zeros((len(frame_indices), n_bins), dtype=np.float64)
-    cum_H = np.zeros((len(frame_indices), n_bins), dtype=np.int64)
-    visited_at_frame = np.zeros((len(frame_indices), n_bins), dtype=bool)
-    halve_at_frame = np.zeros(len(frame_indices), dtype=bool)
+    # ---- precompute per-frame state ----
+    # H is *cumulative* (no halve reset); broken down per stage so the
+    # renderer can stack the bars by stage colour.
+    n_frames_actual = len(frame_indices)
+    cum_g = np.zeros((n_frames_actual, n_bins), dtype=np.float64)
+    cum_H_stage = np.zeros((n_frames_actual, n_stages, n_bins), dtype=np.int64)
+    visited_at_frame = np.zeros((n_frames_actual, n_bins), dtype=bool)
+    stage_at_frame = np.zeros(n_frames_actual, dtype=np.int64)
+    halve_at_frame = np.zeros(n_frames_actual, dtype=bool)
 
     g_run = np.zeros(n_bins, dtype=np.float64)
-    H_run = np.zeros(n_bins, dtype=np.int64)
+    H_stage_run = np.zeros((n_stages, n_bins), dtype=np.int64)
     v_run = np.zeros(n_bins, dtype=bool)
-    prev_ln_f = float(ln_f_arr[0])
-    saw_halve = False
 
     next_frame = 0
+    prev_stage_for_frame = 0
     for j in range(n_recorded):
-        cur_ln_f = float(ln_f_arr[j])
-        if cur_ln_f < prev_ln_f - 1e-30:
-            # f-stage halve: WL resets H. g and visited persist.
-            H_run[:] = 0
-            saw_halve = True
-        prev_ln_f = cur_ln_f
         b = int(bin_arr[j])
-        g_run[b] += cur_ln_f
-        H_run[b] += 1
+        s = int(stage_at_trial[j])
+        g_run[b] += float(ln_f_arr[j])
+        H_stage_run[s, b] += 1
         v_run[b] = True
-        if next_frame < len(frame_indices) and j == int(frame_indices[next_frame]):
+        if next_frame < n_frames_actual and j == int(frame_indices[next_frame]):
             cum_g[next_frame] = g_run
-            cum_H[next_frame] = H_run
+            cum_H_stage[next_frame] = H_stage_run
             visited_at_frame[next_frame] = v_run
-            halve_at_frame[next_frame] = saw_halve
-            saw_halve = False
+            stage_at_frame[next_frame] = s
+            halve_at_frame[next_frame] = (s > prev_stage_for_frame)
+            prev_stage_for_frame = s
             next_frame += 1
 
     # ---- sub-sample dense trajectory for plotting (≤ ~3000 points) ----
     traj_stride = max(1, n_recorded // 3000)
     traj_t = t_arr[::traj_stride]
     traj_E = energy_arr[::traj_stride]
-    # index in the sub-sampled arrays corresponding to each frame
     traj_idx_for_frame = np.searchsorted(traj_t, t_arr[frame_indices], side="right") - 1
     traj_idx_for_frame = np.clip(traj_idx_for_frame, 0, len(traj_t) - 1)
+
+    # ---- stage colors (viridis; stage k -> colors[k]) ----
+    if n_stages == 1:
+        stage_colors = np.array([cm.viridis(0.55)])
+    else:
+        stage_colors = cm.viridis(np.linspace(0.05, 0.92, n_stages))
 
     # ---- figure + axes ----
     fig, axes = plt.subplots(
@@ -502,14 +515,24 @@ def make_trajectory_movie(
     ax_g.legend(loc="upper right")
     ax_g.set_xlim(bin_centers.min(), bin_centers.max())
 
-    bars_H = ax_H.bar(bin_centers, np.zeros(n_bins), width=bar_w, color="C2", alpha=0.85)
-    current_bar = ax_H.bar(
-        [bin_centers[bin_arr[int(frame_indices[0])]]], [0.0],
-        width=bar_w, color="red", alpha=0.95, zorder=5,
-    )[0]
-    ax_H.set_ylabel("H(E)")
+    # One bar collection per stage; stack via per-bin ``bottom``.
+    bars_per_stage = []
+    for k in range(n_stages):
+        bars = ax_H.bar(
+            bin_centers, np.zeros(n_bins),
+            width=bar_w, color=stage_colors[k], alpha=0.92,
+            edgecolor="white", linewidth=0.0, label=f"stage {k}",
+        )
+        bars_per_stage.append(bars)
+    current_line = ax_H.axvline(
+        bin_centers[bin_arr[int(frame_indices[0])]],
+        color="red", lw=2.5, alpha=0.85, zorder=10,
+    )
+    ax_H.set_ylabel("H(E)  (cumulative)")
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
-    ax_H.grid(alpha=0.3)
+    ax_H.grid(alpha=0.3, axis="y")
+    if n_stages > 1:
+        ax_H.legend(loc="upper right", fontsize=8, ncol=min(n_stages, 6))
 
     (line_traj,) = ax_traj.plot([], [], color="C1", lw=0.7, alpha=0.7)
     (walker_dot,) = ax_traj.plot([], [], "ro", markersize=8, zorder=5)
@@ -525,7 +548,7 @@ def make_trajectory_movie(
         idx = int(frame_indices[i])
         b = int(bin_arr[idx])
         g_frame = cum_g[i]
-        H_frame = cum_H[i]
+        H_stage_frame = cum_H_stage[i]  # shape (n_stages, n_bins)
         v_frame = visited_at_frame[i]
 
         if v_frame.any():
@@ -540,21 +563,28 @@ def make_trajectory_movie(
                     ymax = max(ymax, float(ref.max()))
             ax_g.set_ylim(-0.5, ymax * 1.05 + 0.5)
 
-        for bar, h in zip(bars_H, H_frame):
-            bar.set_height(int(h))
-        current_bar.set_x(bin_centers[b] - bar_w / 2)
-        current_bar.set_height(int(H_frame[b]))
-        ax_H.set_ylim(0, max(1, int(H_frame.max()) + 1))
+        # Stacked H bars: per-stage height with cumulative bottom.
+        bottoms = np.zeros(n_bins, dtype=np.int64)
+        for k in range(n_stages):
+            h_k = H_stage_frame[k]
+            for bin_idx, bar in enumerate(bars_per_stage[k]):
+                bar.set_y(int(bottoms[bin_idx]))
+                bar.set_height(int(h_k[bin_idx]))
+            bottoms += h_k
+        total_H = int(bottoms.max())
+        ax_H.set_ylim(0, max(1, total_H + 1))
+        current_line.set_xdata([bin_centers[b], bin_centers[b]])
 
         traj_end = int(traj_idx_for_frame[i]) + 1
         line_traj.set_data(traj_t[:traj_end], traj_E[:traj_end])
         walker_dot.set_data([t_arr[idx]], [energy_arr[idx]])
 
-        halve_tag = "  ← halve" if halve_at_frame[i] else ""
+        halve_tag = f"  ← halve to stage {int(stage_at_frame[i])}" if halve_at_frame[i] else ""
         fig.suptitle(
             f"{title}    trial {int(t_arr[idx]):,}    "
             f"bin E = {bin_centers[b]:+.0f}    "
             f"ln_f = {float(ln_f_arr[idx]):.3g}    "
+            f"stage {int(stage_at_frame[i])}/{n_stages - 1}    "
             f"n_visited = {int(v_frame.sum())}/{n_bins}    "
             f"{'accepted' if bool(accepted_arr[idx]) else 'rejected'}"
             f"{halve_tag}"
