@@ -3,11 +3,7 @@
 flatwalk is an enhanced sampling library implementing flat-histogram
 methods while being order-parameter and energy-backend agnostic.
 flatwalk does the sampling, the user provides the system to sample.
-
-Wang-Landau sampling estimates the density of states `g(Q)` of an
-arbitrary order parameter `Q` by random-walking in `Q`-space with a
-bias refined on a flat-histogram schedule, converging to the true
-density. The contract between flatwalk and the user is the following:
+The contract between flatwalk and the user is the following:
 
 | You supply | Type | What flatwalk does with it |
 | --- | --- | --- |

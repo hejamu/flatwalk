@@ -2,6 +2,11 @@
 
 ## 1. Premise
 
+Wang-Landau (WL) sampling estimates the density of states `g(Q)` of an
+arbitrary order parameter `Q` by random-walking in `Q`-space with a
+bias refined on a flat-histogram schedule, converging to the true
+density.
+
 No existing Wang-Landau implementation is simultaneously **order-parameter
 agnostic** and **energy-backend agnostic**. Mature WL tools are tightly
 coupled to a particle-based state representation and a curated catalogue
