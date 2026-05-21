@@ -24,12 +24,7 @@ callbacks do all state manipulation.
 - 1D order-parameter Wang-Landau with the Belardinelli-Pereyra 1/t-WL
   transition
 - Atomic checkpoint and bit-identical resume (full RNG state preserved)
-- Per-check `progress_callback` and per-trial `trial_callback` hooks;
-  TSV trace writer for offline diagnostics
-- Live matplotlib viewer (3 stacked panels) with headless PNG / mp4 /
-  gif export
-- Per-trial trajectory video with current-bin highlight, per-stage
-  cumulative histogram, and Ising spin-grid overlay
+- TSV trace writer for offline diagnostics
 - Validated against Beale's exact `n(E)` on the 2D Ising L=8 torus,
   cross-checked against brute-force enumeration on L=3 and L=4; the
   full validation runs in CI
@@ -66,7 +61,7 @@ require `--break-system-packages` or a venv.
 
 ## Quick start
 
-Below, block 1 fills the five-piece contract for the 2D Ising model;
+Below, block 1 fills the contract above for the 2D Ising model;
 block 2 is the `flatwalk` setup and run — verbatim across systems.
 
 ```python
@@ -157,109 +152,6 @@ A `--quick` flag runs to `ln_f_final = 1e-5` (~30 s) for smoke testing the
 pipeline; the resulting `g_WL` will NOT meet the spec criteria but is
 useful for development.
 
-### Live visualization
-
-The driver fires an optional `progress_callback(snapshot)` once per
-`n_check` trials. [examples/wl_viewer.py](examples/wl_viewer.py)
-provides a three-panel matplotlib viewer that consumes these snapshots:
-
-- **log g(E)** with optional reference overlay (e.g. exact Beale n(E) for
-  Ising).
-- **H(E)** histogram with the flatness threshold line; resets visibly
-  at each f-stage transition.
-- **ln_f and flatness vs t**, log-log, with the 1/t reference line
-  dashed.
-
-Run the validation with the viewer:
-
-```bash
-.venv/bin/python examples/ising_validation.py --viewer --seed 0
-# headless: save a final-frame PNG
-MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
-    --viewer-out demo.png --seed 0
-```
-
-![WL viewer demo](examples/wl_viewer_demo.png)
-
-`--viewer` forces `--n-seeds 1` (the visualization tracks a single
-walker). The viewer rate-limits drawing to ~10 fps so the WL run pays
-only ~5% matplotlib overhead.
-
-### Video of the full run
-
-```bash
-MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
-    --viewer-movie wl_demo.mp4 --movie-frames 500 --movie-fps 24 --seed 0
-```
-
-A `SnapshotRecorder` callback buffers snapshots on a log-spaced
-schedule in t (so the early stages — where g and H change visibly
-between checks — get many frames while the late 1/t regime is sampled
-sparsely). After the WL run completes, `make_movie` re-plays them
-through the viewer panels and renders an mp4 (via ffmpeg) or gif (via
-Pillow, automatic fallback). The committed
-[examples/wl_demo.mp4](examples/wl_demo.mp4) is a ~10 s, ~3 MB video
-of an L=8 run from `t=10³` through 1/t-regime entry to convergence at
-`ln_f = 10⁻⁸`.
-
-### Per-trial trajectory video
-
-A separate `trial_callback(t, bin_current, energy, ln_f, accepted)`
-hook fires once per individual trial (cheap; None by default).
-`TrialRecorder` buffers per-trial state and `make_trajectory_movie`
-renders an animation where the walker hops bin-by-bin while the
-histogram and `log g(E)` build up from zero, with the current bin
-highlighted in red and the walker's `E(t)` plotted at the bottom:
-
-```bash
-# Long converged run (~3.5 min video, watches g(E) reach the exact reference):
-.venv/bin/python examples/wl_trajectory_demo.py -L 8 \
-    -n 1100000 --n-check 2000 --flatness 0.8 \
-    --schedule "1500:1,30000:20,1100000:300" --fps 30 \
-    -o wl_trajectory_flatness.mp4
-
-# Short run, every-trial playback:
-.venv/bin/python examples/wl_trajectory_demo.py -L 8 -n 1500 \
-    -o wl_trajectory.mp4
-```
-
-The committed
-[examples/wl_trajectory_flatness.mp4](examples/wl_trajectory_flatness.mp4)
-is ~3:36 at 30 fps, animating a 1,100,000-trial L=8 run with 11
-f-stage halves. The playback is **piecewise-constant in speed**, set
-by the `--schedule` flag: every trial for the first 1,500 (50 s of
-video), every 20th trial through 30,000 (~47 s), then every 300th
-trial through 1,100,000 (~119 s, leaving ≥10 s for each of the final
-900K→1M and 1M→1.1M windows). The user can swap to a log-spaced
-schedule with `--n-frames N`.
-
-**Cumulative H, stacked by f-stage.** The middle panel shows the
-cumulative visit count (no reset — the bias lives in `g`, not `H`).
-Bar segments are stacked and colored by which f-stage produced each
-visit, using a viridis ramp. With eleven halves firing in this run,
-twelve stages contribute: stage 0 (dark purple, bottom, ~58K trials at
-`ln_f=1`) dominates, with thinner segments (cyan → green → yellow)
-layered above as `ln_f` decays. The top edge of the stacked bars
-approaching a flat line is the "flatness" signal. The red vertical
-line marks the walker's current bin.
-
-**Per-stage H overlay.** A dark-orange line on the right-hand axis
-shows the **current-stage** ``H(E)`` — this is the histogram the
-algorithm actually evaluates against `flatness_threshold` to decide
-when to halve. The line resets to zero at every halve and rebuilds
-within the new stage; its `min/mean` ratio (the flatness number) is
-printed in the title alongside the configured threshold (default 0.8).
-
-**Stage colorbar + spin grid.** The stage → colour mapping is shown
-as a discrete colorbar to the right of the histogram (no in-axes
-legend to clutter the bars). A fourth panel on the far right
-visualizes the current **Ising spin configuration** as an L×L grid
-(red = +1, blue = −1). When the walker is near the FM ground state
-(``E = −2L²``) the grid is overwhelmingly one colour; near the AF
-state (``E = +2L²``) it's a checkerboard. Spin snapshots are captured
-at exactly the frame indices the renderer will display, so memory
-is bounded by the frame count rather than the trial count.
-
 ### Divergences from spec, and why
 
 To meet the spec §4.4 pass criteria on L=8 (`max ε < 5%`, `mean ε < 1%`)
@@ -304,8 +196,10 @@ extra lines of code now and save rewriting the core later.
 
 3. **`Walker` ownership.** Per-trial state (current configuration, cached
    energy, RNG, counters) lives on a `Walker`, not on `WLDriver`. The
-   per-trial logic is `WLDriver._trial_step(walker, …)`. A shared-`g`
-   multi-walker variant becomes a loop over walkers rather than a rewrite.
+   per-trial logic is `WLDriver._trial_step(walker, …)`. The N-walker
+   generalisation is a `WalkerBatch` carrying stacked state plus
+   batched callables (one GPU call per tick, not N sequential ones);
+   see [docs/src/storyline.md](docs/src/storyline.md).
 
 4. **`ExchangeHandler` hook point.** The main loop already has the call
    site for REWL exchanges every `n_exchange` trials. The current build

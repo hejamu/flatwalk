@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 
 from .binning import BinScheme
-from .diagnostics import ProgressSnapshot, TraceRow, TraceWriter
+from .diagnostics import TraceRow, TraceWriter
 from .exchange import ExchangeHandler
 from .walker import Walker
 
@@ -39,12 +39,6 @@ logger = logging.getLogger(__name__)
 EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], float | np.ndarray]
 ProposeMoveFn = Callable[[Any, np.random.Generator], tuple[Any, float]]
-ProgressCallback = Callable[[ProgressSnapshot], None]
-# Per-trial hook. Called after every accepted/rejected trial with the trial
-# number, the post-trial `Walker` (state / bin_current / energy / rng), the
-# current ln_f, and the accepted flag. Per-trial cost when supplied is one
-# attribute-access-and-call (~0.1 µs); zero when None.
-TrialCallback = Callable[[int, Walker, float, bool], None]
 
 
 # ---------------------------------------------------------------------------
@@ -235,8 +229,6 @@ class WLDriver:
         rng: np.random.Generator | None = None,
         exchange_handler: ExchangeHandler | None = None,
         resume_from: Path | None = None,
-        progress_callback: ProgressCallback | None = None,
-        trial_callback: TrialCallback | None = None,
     ) -> WLResult:
         """Run a Wang-Landau simulation. Returns the final ``WLResult``.
 
@@ -326,7 +318,7 @@ class WLDriver:
                         break
 
                     # ---- one trial ----
-                    accepted = self._trial_step(
+                    self._trial_step(
                         walker,
                         g,
                         H,
@@ -338,8 +330,6 @@ class WLDriver:
                         cfg.beta,
                     )
                     t += 1
-                    if trial_callback is not None:
-                        trial_callback(t, walker, ln_f, accepted)
 
                     # ---- 1/t regime: continuously update ln_f ----
                     if in_1overt:
@@ -420,22 +410,6 @@ class WLDriver:
                                 mean_H,
                                 max_H,
                                 walker.acceptance_rate(),
-                            )
-
-                        if progress_callback is not None:
-                            progress_callback(
-                                ProgressSnapshot(
-                                    t=t,
-                                    ln_f=ln_f,
-                                    in_1overt=in_1overt,
-                                    n_f_stages=n_f_stages,
-                                    g=g.copy(),
-                                    H=H.copy(),
-                                    visited=visited.copy(),
-                                    bin_centers=self.bin_scheme.centers,
-                                    flatness=flatness,
-                                    acceptance_rate=walker.acceptance_rate(),
-                                )
                             )
 
                         walker.reset_counters()

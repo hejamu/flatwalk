@@ -19,12 +19,9 @@ Divergences from the spec literal
   "Tunable" so this is within bounds.
 - The default run averages ``--n-seeds`` independent WL runs (default 3)
   and computes the comparison on the averaged ``log g``. A single seed
-  produces ~10% max ε on L=8 single-walker, well above spec; the literature
-  routine fix is multi-seed (or REWL — see [`flatwalk.exchange`]). The
-  spec's singular "run the driver" is interpreted as "run the WL
-  procedure", and the averaging is a script-level post-process that
-  doesn't touch the driver. ``--n-seeds 1`` recovers the pure spec
-  reading.
+  produces ~10% max ε on L=8 single-walker, well above spec; the
+  literature routine fix is multi-seed (or REWL — see
+  ``flatwalk.exchange``). ``--n-seeds 1`` recovers the pure spec reading.
 
 Usage
 -----
@@ -107,7 +104,6 @@ def run_wl(
     trace_path: Path | None,
     n_check: int = 1_000,
     flatness_threshold: float = 0.95,
-    progress_callback=None,
 ):
     cb = ising.make_ising_callbacks(L)
     rng = np.random.default_rng(seed)
@@ -133,7 +129,6 @@ def run_wl(
         order_parameter_fn=cb["order_parameter_fn"],
         propose_move_fn=cb["propose_move_fn"],
         rng=rng,
-        progress_callback=progress_callback,
     )
     dt = time.perf_counter() - t0
     print(
@@ -187,15 +182,10 @@ def compare_g(log_g_WL, visited, scheme, g_exact_dict):
     log_g_exact = beale.log_g_E_array(8, g_exact_dict, centers)
     n_E_exact = np.exp(log_g_exact)  # zeros where g=0 (gap bins)
 
-    # Mask: visited AND g_exact > 0 (skip spectrum gaps).
     valid = visited & np.isfinite(log_g_exact) & (n_E_exact > 0)
     if not valid.any():
         raise RuntimeError("no overlap between visited bins and exact non-zero bins")
 
-    # Normalize WL log_g by aligning on the visited set so totals match.
-    # Convert to a *probability* over the comparison set:
-    #   p_WL[i] = exp(log_g_WL[i]) / Σ exp(log_g_WL),   sum on `valid`
-    # Same for exact.  We then turn p back into a renormalized g.
     shifted = log_g_WL[valid] - log_g_WL[valid].max()
     p_WL = np.exp(shifted)
     p_WL /= p_WL.sum()
@@ -203,12 +193,8 @@ def compare_g(log_g_WL, visited, scheme, g_exact_dict):
 
     eps = np.abs(n_E_WL_norm - n_E_exact[valid]) / n_E_exact[valid]
 
-    # Central mask: exclude the two extremes (E = ±2L²) on the comparison set.
     central = np.ones_like(eps, dtype=bool)
     if eps.size >= 2:
-        # By construction, allowed energies are sorted by centers (which are
-        # increasing). The first valid bin is the lowest E; the last is the
-        # highest. Drop them.
         central[0] = False
         central[-1] = False
     if not central.any():
@@ -228,18 +214,14 @@ def compare_g(log_g_WL, visited, scheme, g_exact_dict):
 
 
 def thermodynamics(centers, n_E_dict, T_grid):
-    """Compute ⟨E⟩(T) and C_V(T) by reweighting exact n(E) (or by passing
-    a different dict — same call). Returns dict of arrays."""
-    # Stack to arrays
+    """Compute ⟨E⟩(T) and C_V(T) by reweighting an n(E) dict."""
     E_arr = np.array([E for E in n_E_dict if n_E_dict[E] > 0], dtype=np.float64)
-    # log n(E) for numerical safety at low T
     log_n = np.array([math.log(n_E_dict[int(E)]) for E in E_arr])
 
     E_mean = np.empty_like(T_grid)
     C_V = np.empty_like(T_grid)
     for i, T in enumerate(T_grid):
         beta = 1.0 / T
-        # log of Boltzmann-weighted DOS:
         log_w = log_n - beta * E_arr
         log_w -= log_w.max()
         w = np.exp(log_w)
@@ -247,14 +229,13 @@ def thermodynamics(centers, n_E_dict, T_grid):
         Em = (E_arr * w).sum() / Z
         E2m = (E_arr * E_arr * w).sum() / Z
         E_mean[i] = Em
-        # Specific heat per spin: C_V = (⟨E²⟩ - ⟨E⟩²) / T²  (then /N for per-spin)
         C_V[i] = (E2m - Em * Em) / (T * T)
     return E_mean, C_V
 
 
 def wl_to_n_E_dict(centers, log_g, exact_total_for_normalization):
-    """Convert WL log_g array to a {E: n(E)} dict normalized so its sum matches
-    the exact total of valid configurations."""
+    """Convert a WL log_g array to a ``{E: n(E)}`` dict normalized so its
+    sum matches the exact total of valid configurations."""
     finite = np.isfinite(log_g) & (log_g > -np.inf)
     shifted = log_g - log_g[finite].max()
     n_arr = np.exp(shifted)
@@ -318,46 +299,10 @@ def main(argv: list[str] | None = None) -> int:
         help="number of independent WL runs to average "
         "(default 3; --n-seeds 1 = spec literal)",
     )
-    parser.add_argument(
-        "--viewer",
-        action="store_true",
-        help="show a live matplotlib viewer during the WL run "
-        "(forces --n-seeds 1; matplotlib must be installed)",
-    )
-    parser.add_argument(
-        "--viewer-out",
-        type=Path,
-        default=None,
-        help="save the final viewer figure to this PNG/PDF/SVG path. "
-        "Implies --viewer; works headlessly under MPLBACKEND=Agg",
-    )
-    parser.add_argument(
-        "--viewer-movie",
-        type=Path,
-        default=None,
-        help="record snapshots during the WL run and render a video "
-        "(.mp4/.mov/.webm via ffmpeg; .gif via Pillow) on completion. "
-        "Forces --n-seeds 1",
-    )
-    parser.add_argument(
-        "--movie-frames",
-        type=int,
-        default=400,
-        help="target number of frames in the movie (log-spaced in t; default 400)",
-    )
-    parser.add_argument(
-        "--movie-fps", type=int, default=20, help="movie playback frame rate (default 20)"
-    )
     args = parser.parse_args(argv)
-    if args.viewer_out is not None or args.viewer_movie is not None:
-        args.viewer = True
 
     if args.quick:
         args.ln_f_final = max(args.ln_f_final, 1e-5)
-
-    if args.viewer and args.n_seeds != 1:
-        print("[viewer mode] forcing --n-seeds 1 for live visualization")
-        args.n_seeds = 1
 
     logging.basicConfig(
         level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%H:%M:%S"
@@ -367,7 +312,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"=== flatwalk Ising L={args.L} validation ===")
     print(f"  ln_f_final = {args.ln_f_final:.0e}, seeds = {seeds}")
 
-    # Exact reference
     print(f"  Loading exact n(E) (Beale recursion) for L={args.L}...")
     t0 = time.perf_counter()
     g_exact = load_or_compute_beale(args.L, args.cache_dir)
@@ -376,34 +320,6 @@ def main(argv: list[str] | None = None) -> int:
         f"Σ n(E) = 2^{args.L * args.L} (loaded in {time.perf_counter() - t0:.1f}s)"
     )
 
-    # Optional live viewer and/or movie recorder (single-seed only).
-    viewer = None
-    recorder = None
-    progress_callback = None
-    movie_centers = None
-    movie_log_g_exact = None
-    if args.viewer:
-        from wl_viewer import LiveViewer, SnapshotRecorder
-
-        low, high, n_bins = ising.ising_energy_bins(args.L)
-        movie_centers = np.arange(
-            low + (high - low) / (2 * n_bins), high, (high - low) / n_bins
-        )
-        # Use Beale as the reference overlay.
-        movie_log_g_exact = beale.log_g_E_array(args.L, g_exact, movie_centers)
-        if args.viewer_movie is None:
-            viewer = LiveViewer(
-                movie_centers,
-                flatness_threshold=args.flatness,
-                log_g_exact=movie_log_g_exact,
-                title=f"Wang-Landau   |   L={args.L} Ising",
-            )
-            progress_callback = viewer.callback
-        else:
-            recorder = SnapshotRecorder(n_frames=args.movie_frames)
-            progress_callback = recorder
-
-    # WL runs
     print(
         f"  Running Wang-Landau (n_check={args.n_check}, flatness={args.flatness:.2f})..."
     )
@@ -417,14 +333,12 @@ def main(argv: list[str] | None = None) -> int:
             args.trace if (s == seeds[0]) else None,
             n_check=args.n_check,
             flatness_threshold=args.flatness,
-            progress_callback=progress_callback,
         )
         results.append(r)
         scheme = sch
 
     log_g_avg, visited_avg = average_log_g(results)
 
-    # Compare
     cmp = compare_g(log_g_avg, visited_avg, scheme, g_exact)
     print(
         f"  Compared on {cmp['n_compared']} central bins "
@@ -433,7 +347,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"    max  ε = {cmp['max_eps']:.4f}  (pass < 0.05)")
     print(f"    mean ε = {cmp['mean_eps']:.4f}  (pass < 0.01)")
 
-    # Thermodynamics
     T_grid = np.linspace(1.0, 4.0, 31)
     E_exact, CV_exact = thermodynamics(scheme.centers, g_exact, T_grid)
     n_E_WL = wl_to_n_E_dict(
@@ -457,7 +370,6 @@ def main(argv: list[str] | None = None) -> int:
         f"rel err = {T_peak_err * 100:.3f}%  (pass < 2%)"
     )
 
-    # Pass / fail
     criteria = {
         "max ε < 0.05": cmp["max_eps"] < 0.05,
         "mean ε < 0.01": cmp["mean_eps"] < 0.01,
@@ -469,31 +381,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    [{'PASS' if ok else 'FAIL'}] {name}")
     overall = all(criteria.values())
     print(f"\n  Overall: {'PASS' if overall else 'FAIL'}")
-
-    if viewer is not None:
-        if args.viewer_out is not None:
-            viewer.save(args.viewer_out)
-            print(f"  Viewer: saved figure → {args.viewer_out}")
-        print("  Viewer: close the figure window to exit.")
-        viewer.keep_open()
-
-    if recorder is not None and args.viewer_movie is not None:
-        from wl_viewer import make_movie
-
-        print(
-            f"  Movie: rendering {len(recorder.snapshots)} frames → {args.viewer_movie} ..."
-        )
-        t0 = time.perf_counter()
-        make_movie(
-            recorder.snapshots,
-            args.viewer_movie,
-            bin_centers=movie_centers,
-            flatness_threshold=args.flatness,
-            log_g_exact=movie_log_g_exact,
-            title=f"Wang-Landau   |   L={args.L} Ising",
-            fps=args.movie_fps,
-        )
-        print(f"  Movie: saved in {time.perf_counter() - t0:.1f}s → {args.viewer_movie}")
 
     return 0 if overall else 1
 
