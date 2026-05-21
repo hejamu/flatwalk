@@ -7,17 +7,29 @@ parameters and replica-exchange WL without a rewrite.
 ## Why flatwalk
 
 Wang-Landau sampling estimates the density of states `g(Q)` of an arbitrary
-order parameter `Q` by performing a random walk in `Q`-space biased toward
-the running histogram, refining the bias factor on a schedule that
-converges to the true density.
+order parameter `Q` by random-walking in `Q`-space with a bias that is
+refined on a flat-histogram schedule, converging to the true density.
 
-The driver here is **order-parameter agnostic** and **energy-backend
-agnostic** — the user supplies four callbacks (energy, order parameter,
-move proposal, initial state) and the driver handles the WL bookkeeping.
+`flatwalk` separates the **WL bookkeeping** (bins, bias, flatness check,
+f-stage schedule, 1/t transition, checkpointing, diagnostics) from the
+**physics** (what a configuration is, how to flip one, what its energy
+and order parameter are). The contract between them is small:
 
-The current scope is the 1D order-parameter case validated against the 2D
-Ising model. The architecture is set up so 2D `g(Q1, Q2)` sampling and
-replica-exchange WL drop in additively — see the architectural notes below.
+| You supply | Type | What flatwalk does with it |
+| --- | --- | --- |
+| `bin_scheme` | `BinScheme` instance | maps `Q → bin index` |
+| `initial_state` | anything (opaque) | passed through to your callbacks |
+| `energy_fn(state)` | `→ float` | the `−β·ΔE` term in WL acceptance (skip when `β=0` and `Q=E`) |
+| `order_parameter_fn(state)` | `→ float \| np.ndarray` | the quantity `g(Q)` is estimated over (vector for ≥2D) |
+| `propose_move_fn(state, rng)` | `→ (new_state, log_proposal_ratio)` | one Markov step |
+
+`state` can be a tuple, dataclass, numpy array, torch tensor, anything
+your callbacks recognise — flatwalk never inspects it. The 1D
+order-parameter case is validated against the 2D Ising model; 2D
+`g(Q1, Q2)` sampling and replica-exchange WL are out of scope here, but
+the architecture (`BinScheme` ABC, `Walker` ownership, `ExchangeHandler`
+hook) is set up so they drop in additively — see the architectural
+notes below.
 
 ## Install
 
@@ -33,25 +45,8 @@ require `--break-system-packages` or a venv.
 
 ## Quick start
 
-`flatwalk` is **system-agnostic**: it doesn't know what your `state` is,
-what your Hamiltonian is, or what `Q` your order parameter measures.
-You supply five pieces of user code, and the same `WLDriver.run` call
-handles the rest.
-
-**The contract**:
-
-| You supply | Type | What flatwalk does with it |
-| --- | --- | --- |
-| `bin_scheme` | `BinScheme` instance | maps `Q → bin index` |
-| `initial_state` | anything (opaque) | passed through to your callbacks |
-| `energy_fn(state)` | `→ float` | the `−β·ΔE` term in WL acceptance (skip when `β=0` and `Q=E`) |
-| `order_parameter_fn(state)` | `→ float \| np.ndarray` | the quantity `g(Q)` is estimated over (vector for ≥2D) |
-| `propose_move_fn(state, rng)` | `→ (new_state, log_proposal_ratio)` | one Markov step |
-
-`state` can be a tuple, dataclass, numpy array, torch tensor, anything
-your callbacks recognise. Below, an Ising example fills the contract;
-the second block (the actual driver setup and run) is the SAME you'd
-use for any other Hamiltonian.
+Below, block 1 fills the five-piece contract for the 2D Ising model;
+block 2 is the `flatwalk` setup and run — verbatim across systems.
 
 ```python
 import numpy as np
