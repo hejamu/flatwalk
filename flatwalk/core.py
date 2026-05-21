@@ -39,11 +39,11 @@ EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], Union[float, np.ndarray]]
 ProposeMoveFn = Callable[[Any, np.random.Generator], Tuple[Any, float]]
 ProgressCallback = Callable[[ProgressSnapshot], None]
-# Per-trial hook. Called after every accepted/rejected trial, with the trial
-# number, post-trial bin, post-trial energy, current ln_f, and accepted flag.
-# Kept as a 5-arg callable (rather than a dataclass) so the per-trial cost
-# stays minimal — relevant for long runs where this fires 10⁸ times.
-TrialCallback = Callable[[int, int, float, float, bool], None]
+# Per-trial hook. Called after every accepted/rejected trial with the trial
+# number, the post-trial `Walker` (state / bin_current / energy / rng), the
+# current ln_f, and the accepted flag. Per-trial cost when supplied is one
+# attribute-access-and-call (~0.1 µs); zero when None.
+TrialCallback = Callable[[int, Walker, float, bool], None]
 
 
 # ---------------------------------------------------------------------------
@@ -325,9 +325,7 @@ class WLDriver:
                     )
                     t += 1
                     if trial_callback is not None:
-                        trial_callback(
-                            t, walker.bin_current, walker.energy, ln_f, accepted,
-                        )
+                        trial_callback(t, walker, ln_f, accepted)
 
                     # ---- 1/t regime: continuously update ln_f ----
                     if in_1overt:

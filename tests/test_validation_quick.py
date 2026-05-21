@@ -133,14 +133,43 @@ def test_trial_recorder_buffers_correctly():
     import os
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
+    from flatwalk import Walker
 
     rec = wl_viewer.TrialRecorder(max_records=50)
+    walker = Walker(state=None, bin_current=0, energy=0.0,
+                    rng=np.random.default_rng(0))
     for k in range(1, 200):
-        rec(k, k % 5, float(k), 0.5, k % 2 == 0)
+        walker.bin_current = k % 5
+        walker.energy = float(k)
+        rec(k, walker, 0.5, k % 2 == 0)
     arr = rec.as_arrays()
     assert len(arr["t"]) == 50
     np.testing.assert_array_equal(arr["t"], np.arange(1, 51))
     assert arr["accepted"].dtype == bool
+
+
+def test_trial_recorder_captures_state_at_specific_t():
+    """With a `state_capturer` and `capture_at` set, the recorder
+    snapshots state only at the requested trials."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+    from flatwalk import Walker
+
+    capture_at = {3, 7, 11}
+    rec = wl_viewer.TrialRecorder(
+        max_records=20,
+        state_capturer=lambda w: ("snap", w.bin_current),
+        capture_at=capture_at,
+    )
+    walker = Walker(state=None, bin_current=0, energy=0.0,
+                    rng=np.random.default_rng(0))
+    for k in range(1, 16):
+        walker.bin_current = k * 10
+        rec(k, walker, 0.5, True)
+    assert set(rec.states.keys()) == capture_at
+    assert rec.states[3] == ("snap", 30)
+    assert rec.states[7] == ("snap", 70)
 
 
 def test_make_trajectory_movie_renders_gif(tmp_path):

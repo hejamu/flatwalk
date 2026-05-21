@@ -202,6 +202,16 @@ when to halve. The line resets to zero at every halve and rebuilds
 within the new stage; its `min/mean` ratio (the flatness number) is
 printed in the title alongside the configured threshold (default 0.8).
 
+**Stage colorbar + spin grid.** The stage → colour mapping is shown
+as a discrete colorbar to the right of the histogram (no in-axes
+legend to clutter the bars). A fourth panel on the far right
+visualizes the current **Ising spin configuration** as an L×L grid
+(red = +1, blue = −1). When the walker is near the FM ground state
+(``E = −2L²``) the grid is overwhelmingly one colour; near the AF
+state (``E = +2L²``) it's a checkerboard. Spin snapshots are captured
+at exactly the frame indices the renderer will display, so memory
+is bounded by the frame count rather than the trial count.
+
 ### Divergences from spec, and why
 
 To meet the spec §4.4 pass criteria on L=8 (`max ε < 5%`, `mean ε < 1%`)
