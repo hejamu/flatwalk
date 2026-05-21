@@ -181,9 +181,18 @@ is ~15 s at 30 fps. With `--n-frames 600` and a 100,000-trial run, the
 600 frame indices are log-spaced in trial number — early frames hit
 consecutive trials (you can watch the walker step bin-by-bin), and
 later frames skip through hundreds of trials each, so the playback
-visibly "speeds up" as the histogram approaches flatness. Five f-stage
-halves fire in the recorded window (annotated in the title); `H`
-resets at each one and rebuilds toward a flatter shape.
+visibly "speeds up" as the histogram approaches flatness.
+
+**Cumulative H, stacked by f-stage.** The middle panel shows the
+cumulative visit count (no reset — the bias lives in `g`, not `H`).
+Bar segments are stacked and colored by which f-stage produced each
+visit, using a viridis ramp. With five halves firing, six stages
+contribute: stage 0 (dark purple, bottom, ~32K trials at `ln_f=1`)
+dominates, with thinner segments (cyan → green → yellow) layered above
+as `ln_f` decays. The bars themselves grow approximately uniformly
+once the bias is well-calibrated, so the "flatness" is visible as the
+top edge of the stacked bars approaching a flat line. The red vertical
+line marks the walker's current bin.
 
 ### Divergences from spec, and why
 

@@ -165,24 +165,27 @@ def test_make_trajectory_movie_renders_gif(tmp_path):
     assert out.exists() and out.stat().st_size > 2_000
 
 
-def test_make_trajectory_movie_log_spaced_resets_H_on_halve(tmp_path):
-    """When ``ln_f`` drops within the recorded history, the renderer must
-    reset its internal H (mirroring the WL driver's halve behaviour)."""
+def test_make_trajectory_movie_handles_multiple_stages(tmp_path):
+    """A history with ln_f drops must render with the multi-stage stacked
+    bars without raising — the renderer should detect the stages and
+    accumulate H *across* them (no reset)."""
     import os
     os.environ.setdefault("MPLBACKEND", "Agg")
     import wl_viewer
 
     bin_centers = np.linspace(-2, 2, 5)
-    # 12 trials, ln_f halves at trial 6 (index 5)
+    # 12 trials, ln_f drops twice (-> 3 stages).
     history = {
         "t": np.arange(1, 13, dtype=np.int64),
-        "bin": np.array([2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3], dtype=np.int64),
+        "bin": np.array([2, 2, 2, 2, 2, 3, 3, 3, 3, 1, 1, 1], dtype=np.int64),
         "energy": np.zeros(12, dtype=np.float64),
-        "ln_f": np.array([1, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float64),
+        "ln_f": np.array(
+            [1, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25, 0.25],
+            dtype=np.float64,
+        ),
         "accepted": np.ones(12, dtype=bool),
     }
-    out = tmp_path / "halve.gif"
-    # Render every frame (no log-spacing) so we hit the halve exactly.
+    out = tmp_path / "stages.gif"
     wl_viewer.make_trajectory_movie(
         history, out, bin_centers=bin_centers, fps=4,
     )
