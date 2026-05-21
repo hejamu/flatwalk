@@ -381,6 +381,7 @@ def make_trajectory_movie(
     log_g_exact=None,
     title: str = "Wang-Landau trajectory",
     fps: int = 30,
+    n_frames: Optional[int] = None,
     dpi: int = 110,
 ) -> None:
     """Per-trial animation: walker hopping between bins, with H and ``g`` building up.
@@ -390,13 +391,18 @@ def make_trajectory_movie(
     1. **log g(E)** building up across the visited bins (one bin gets
        ``+ln_f`` per trial). Optional dashed reference overlay.
     2. **H(E)** bars rising as visits accumulate, with the **current bin
-       highlighted** in red so the walker's position is unambiguous.
+       highlighted** in red. ``H`` is reset whenever the recorded ``ln_f``
+       drops (f-stage halve), exactly mirroring the WL driver.
     3. **E vs t** time series — the walker's energy trajectory, with the
        current step marked as a red dot.
 
     ``history`` is the dict returned by ``TrialRecorder.as_arrays()``.
-    Renders one frame per recorded trial, so a ~2 minute video at 30 fps
-    needs ~3600 recorded trials.
+
+    If ``n_frames`` is given and < ``len(history['t'])``, frames are
+    chosen on a log-spaced schedule of trial index — so the visible
+    walker advances one-step-at-a-time early on and skips through more
+    trials per frame later. Combined with constant playback FPS, this
+    makes the video "speed up" as the histogram approaches flatness.
     """
     from pathlib import Path
 
@@ -416,22 +422,70 @@ def make_trajectory_movie(
     bin_arr = history["bin"]
     energy_arr = history["energy"]
     ln_f_arr = history["ln_f"]
-    n_frames = len(t_arr)
-    if n_frames == 0:
+    accepted_arr = history["accepted"]
+    n_recorded = len(t_arr)
+    if n_recorded == 0:
         raise ValueError("history is empty")
 
-    # Incrementally maintained state.
-    g = np.zeros(n_bins, dtype=np.float64)
-    H = np.zeros(n_bins, dtype=np.int64)
-    visited = np.zeros(n_bins, dtype=bool)
+    # ---- choose frame indices ----
+    if n_frames is None or n_frames >= n_recorded:
+        frame_indices = np.arange(n_recorded, dtype=np.int64)
+    else:
+        # Geometric spacing of trial indices: early frames hit consecutive
+        # trials (because t_i+1 = ceil(t_i * r) ≈ t_i + 1 while r-1 < 1/t_i),
+        # then progressively skip more.
+        log_idx = np.linspace(0.0, np.log(n_recorded), n_frames)
+        raw = np.exp(log_idx).astype(np.int64) - 1
+        frame_indices = np.unique(np.clip(raw, 0, n_recorded - 1))
 
+    # ---- precompute cumulative g, H per displayed frame ----
+    # Replay every trial up to each frame index; reset H at any ln_f drop.
+    cum_g = np.zeros((len(frame_indices), n_bins), dtype=np.float64)
+    cum_H = np.zeros((len(frame_indices), n_bins), dtype=np.int64)
+    visited_at_frame = np.zeros((len(frame_indices), n_bins), dtype=bool)
+    halve_at_frame = np.zeros(len(frame_indices), dtype=bool)
+
+    g_run = np.zeros(n_bins, dtype=np.float64)
+    H_run = np.zeros(n_bins, dtype=np.int64)
+    v_run = np.zeros(n_bins, dtype=bool)
+    prev_ln_f = float(ln_f_arr[0])
+    saw_halve = False
+
+    next_frame = 0
+    for j in range(n_recorded):
+        cur_ln_f = float(ln_f_arr[j])
+        if cur_ln_f < prev_ln_f - 1e-30:
+            # f-stage halve: WL resets H. g and visited persist.
+            H_run[:] = 0
+            saw_halve = True
+        prev_ln_f = cur_ln_f
+        b = int(bin_arr[j])
+        g_run[b] += cur_ln_f
+        H_run[b] += 1
+        v_run[b] = True
+        if next_frame < len(frame_indices) and j == int(frame_indices[next_frame]):
+            cum_g[next_frame] = g_run
+            cum_H[next_frame] = H_run
+            visited_at_frame[next_frame] = v_run
+            halve_at_frame[next_frame] = saw_halve
+            saw_halve = False
+            next_frame += 1
+
+    # ---- sub-sample dense trajectory for plotting (≤ ~3000 points) ----
+    traj_stride = max(1, n_recorded // 3000)
+    traj_t = t_arr[::traj_stride]
+    traj_E = energy_arr[::traj_stride]
+    # index in the sub-sampled arrays corresponding to each frame
+    traj_idx_for_frame = np.searchsorted(traj_t, t_arr[frame_indices], side="right") - 1
+    traj_idx_for_frame = np.clip(traj_idx_for_frame, 0, len(traj_t) - 1)
+
+    # ---- figure + axes ----
     fig, axes = plt.subplots(
         3, 1, figsize=(11, 9),
         gridspec_kw={"height_ratios": [3, 3, 2]},
     )
     ax_g, ax_H, ax_traj = axes
 
-    # ---- log g(E) ----
     (line_g,) = ax_g.plot([], [], color="C0", lw=2.0, label="WL log g (shifted)")
     if log_g_exact is not None:
         log_g_exact = np.asarray(log_g_exact)
@@ -448,18 +502,15 @@ def make_trajectory_movie(
     ax_g.legend(loc="upper right")
     ax_g.set_xlim(bin_centers.min(), bin_centers.max())
 
-    # ---- H(E) bars ----
     bars_H = ax_H.bar(bin_centers, np.zeros(n_bins), width=bar_w, color="C2", alpha=0.85)
-    # current-bin highlight
     current_bar = ax_H.bar(
-        [bin_centers[bin_arr[0]]], [0.0],
+        [bin_centers[bin_arr[int(frame_indices[0])]]], [0.0],
         width=bar_w, color="red", alpha=0.95, zorder=5,
     )[0]
     ax_H.set_ylabel("H(E)")
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
     ax_H.grid(alpha=0.3)
 
-    # ---- walker trajectory E vs t ----
     (line_traj,) = ax_traj.plot([], [], color="C1", lw=0.7, alpha=0.7)
     (walker_dot,) = ax_traj.plot([], [], "ro", markersize=8, zorder=5)
     ax_traj.set_xlabel("t (trials)")
@@ -471,16 +522,17 @@ def make_trajectory_movie(
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
 
     def animate(i):
-        b = int(bin_arr[i])
-        g[b] += float(ln_f_arr[i])
-        H[b] += 1
-        visited[b] = True
+        idx = int(frame_indices[i])
+        b = int(bin_arr[idx])
+        g_frame = cum_g[i]
+        H_frame = cum_H[i]
+        v_frame = visited_at_frame[i]
 
-        if visited.any():
-            shifted = g.copy()
-            shifted[visited] -= shifted[visited].min()
-            line_g.set_data(bin_centers[visited], shifted[visited])
-            ymax = float(shifted[visited].max())
+        if v_frame.any():
+            shifted = g_frame.copy()
+            shifted[v_frame] -= shifted[v_frame].min()
+            line_g.set_data(bin_centers[v_frame], shifted[v_frame])
+            ymax = float(shifted[v_frame].max())
             if log_g_exact is not None:
                 fin = np.isfinite(log_g_exact)
                 if fin.any():
@@ -488,25 +540,29 @@ def make_trajectory_movie(
                     ymax = max(ymax, float(ref.max()))
             ax_g.set_ylim(-0.5, ymax * 1.05 + 0.5)
 
-        for bar, h in zip(bars_H, H):
+        for bar, h in zip(bars_H, H_frame):
             bar.set_height(int(h))
         current_bar.set_x(bin_centers[b] - bar_w / 2)
-        current_bar.set_height(int(H[b]))
-        ax_H.set_ylim(0, max(1, int(H.max()) + 1))
+        current_bar.set_height(int(H_frame[b]))
+        ax_H.set_ylim(0, max(1, int(H_frame.max()) + 1))
 
-        line_traj.set_data(t_arr[: i + 1], energy_arr[: i + 1])
-        walker_dot.set_data([t_arr[i]], [energy_arr[i]])
+        traj_end = int(traj_idx_for_frame[i]) + 1
+        line_traj.set_data(traj_t[:traj_end], traj_E[:traj_end])
+        walker_dot.set_data([t_arr[idx]], [energy_arr[idx]])
 
+        halve_tag = "  ← halve" if halve_at_frame[i] else ""
         fig.suptitle(
-            f"{title}    trial {int(t_arr[i]):,}    "
+            f"{title}    trial {int(t_arr[idx]):,}    "
             f"bin E = {bin_centers[b]:+.0f}    "
-            f"n_visited = {int(visited.sum())}/{n_bins}    "
-            f"{'accepted' if bool(history['accepted'][i]) else 'rejected'}"
+            f"ln_f = {float(ln_f_arr[idx]):.3g}    "
+            f"n_visited = {int(v_frame.sum())}/{n_bins}    "
+            f"{'accepted' if bool(accepted_arr[idx]) else 'rejected'}"
+            f"{halve_tag}"
         )
         return ()
 
     ani = animation.FuncAnimation(
-        fig, animate, frames=n_frames,
+        fig, animate, frames=len(frame_indices),
         interval=int(1000 / fps), blit=False, repeat=False,
     )
 

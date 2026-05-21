@@ -165,6 +165,54 @@ def test_make_trajectory_movie_renders_gif(tmp_path):
     assert out.exists() and out.stat().st_size > 2_000
 
 
+def test_make_trajectory_movie_log_spaced_resets_H_on_halve(tmp_path):
+    """When ``ln_f`` drops within the recorded history, the renderer must
+    reset its internal H (mirroring the WL driver's halve behaviour)."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+
+    bin_centers = np.linspace(-2, 2, 5)
+    # 12 trials, ln_f halves at trial 6 (index 5)
+    history = {
+        "t": np.arange(1, 13, dtype=np.int64),
+        "bin": np.array([2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3], dtype=np.int64),
+        "energy": np.zeros(12, dtype=np.float64),
+        "ln_f": np.array([1, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float64),
+        "accepted": np.ones(12, dtype=bool),
+    }
+    out = tmp_path / "halve.gif"
+    # Render every frame (no log-spacing) so we hit the halve exactly.
+    wl_viewer.make_trajectory_movie(
+        history, out, bin_centers=bin_centers, fps=4,
+    )
+    assert out.exists() and out.stat().st_size > 2_000
+
+
+def test_make_trajectory_movie_log_spaced_subsampling(tmp_path):
+    """With n_frames << len(history), the renderer must pick log-spaced indices."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+
+    bin_centers = np.linspace(-2, 2, 5)
+    n = 500
+    rng = np.random.default_rng(0)
+    bins = rng.integers(0, 5, size=n)
+    history = {
+        "t": np.arange(1, n + 1, dtype=np.int64),
+        "bin": bins.astype(np.int64),
+        "energy": (bins - 2).astype(np.float64),
+        "ln_f": np.full(n, 1.0),
+        "accepted": np.ones(n, dtype=bool),
+    }
+    out = tmp_path / "logspace.gif"
+    wl_viewer.make_trajectory_movie(
+        history, out, bin_centers=bin_centers, fps=5, n_frames=30,
+    )
+    assert out.exists() and out.stat().st_size > 2_000
+
+
 def test_make_movie_renders_gif(tmp_path):
     """make_movie should produce a valid GIF from a tiny snapshot list."""
     import os
