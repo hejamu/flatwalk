@@ -109,6 +109,34 @@ A `--quick` flag runs to `ln_f_final = 1e-5` (~30 s) for smoke testing the
 pipeline; the resulting `g_WL` will NOT meet the spec criteria but is
 useful for development.
 
+### Live visualization
+
+The driver fires an optional `progress_callback(snapshot)` once per
+`n_check` trials. [examples/wl_viewer.py](examples/wl_viewer.py)
+provides a three-panel matplotlib viewer that consumes these snapshots:
+
+- **log g(E)** with optional reference overlay (e.g. exact Beale n(E) for
+  Ising).
+- **H(E)** histogram with the flatness threshold line; resets visibly
+  at each f-stage transition.
+- **ln_f and flatness vs t**, log-log, with the 1/t reference line
+  dashed.
+
+Run the validation with the viewer:
+
+```bash
+.venv/bin/python examples/ising_validation.py --viewer --seed 0
+# headless: save a snapshot
+MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
+    --viewer-out demo.png --seed 0
+```
+
+![WL viewer demo](examples/wl_viewer_demo.png)
+
+`--viewer` forces `--n-seeds 1` (the visualization tracks a single
+walker). The viewer rate-limits drawing to ~10 fps so the WL run pays
+only ~5% matplotlib overhead.
+
 ### Divergences from spec, and why
 
 To meet the spec §4.4 pass criteria on L=8 (`max ε < 5%`, `mean ε < 1%`)

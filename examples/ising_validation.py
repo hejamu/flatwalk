@@ -101,6 +101,7 @@ def load_or_compute_beale(L: int, cache_dir: Path | None) -> dict[int, int]:
 def run_wl(
     L: int, ln_f_final: float, seed: int, trace_path: Path | None,
     n_check: int = 1_000, flatness_threshold: float = 0.95,
+    progress_callback=None,
 ):
     cb = ising.make_ising_callbacks(L)
     rng = np.random.default_rng(seed)
@@ -126,6 +127,7 @@ def run_wl(
         order_parameter_fn=cb["order_parameter_fn"],
         propose_move_fn=cb["propose_move_fn"],
         rng=rng,
+        progress_callback=progress_callback,
     )
     dt = time.perf_counter() - t0
     print(f"  seed {seed}: {result.t_total:,} trials in {dt:.1f}s "
@@ -284,10 +286,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-seeds", type=int, default=3,
                         help="number of independent WL runs to average "
                              "(default 3; --n-seeds 1 = spec literal)")
+    parser.add_argument("--viewer", action="store_true",
+                        help="show a live matplotlib viewer during the WL run "
+                             "(forces --n-seeds 1; matplotlib must be installed)")
+    parser.add_argument("--viewer-out", type=Path, default=None,
+                        help="save the final viewer figure to this PNG/PDF/SVG path. "
+                             "Implies --viewer; works headlessly under MPLBACKEND=Agg")
     args = parser.parse_args(argv)
+    if args.viewer_out is not None:
+        args.viewer = True
 
     if args.quick:
         args.ln_f_final = max(args.ln_f_final, 1e-5)
+
+    if args.viewer and args.n_seeds != 1:
+        print("[viewer mode] forcing --n-seeds 1 for live visualization")
+        args.n_seeds = 1
 
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s",
                         datefmt="%H:%M:%S")
@@ -303,6 +317,24 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  → {len(g_exact)} distinct energies, "
           f"Σ n(E) = 2^{args.L*args.L} (loaded in {time.perf_counter()-t0:.1f}s)")
 
+    # Optional live viewer (single-seed only).
+    viewer = None
+    progress_callback = None
+    if args.viewer:
+        from wl_viewer import LiveViewer
+        low, high, n_bins = ising.ising_energy_bins(args.L)
+        centers = np.arange(low + (high - low) / (2 * n_bins),
+                            high, (high - low) / n_bins)
+        # Use Beale as the reference overlay.
+        log_g_exact_arr = beale.log_g_E_array(args.L, g_exact, centers)
+        viewer = LiveViewer(
+            centers,
+            flatness_threshold=args.flatness,
+            log_g_exact=log_g_exact_arr,
+            title=f"Wang-Landau   |   L={args.L} Ising",
+        )
+        progress_callback = viewer.callback
+
     # WL runs
     print(f"  Running Wang-Landau (n_check={args.n_check}, "
           f"flatness={args.flatness:.2f})...")
@@ -313,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
             args.L, args.ln_f_final, s,
             args.trace if (s == seeds[0]) else None,
             n_check=args.n_check, flatness_threshold=args.flatness,
+            progress_callback=progress_callback,
         )
         results.append(r)
         scheme = sch
@@ -357,6 +390,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    [{'PASS' if ok else 'FAIL'}] {name}")
     overall = all(criteria.values())
     print(f"\n  Overall: {'PASS' if overall else 'FAIL'}")
+
+    if viewer is not None:
+        if args.viewer_out is not None:
+            viewer.save(args.viewer_out)
+            print(f"  Viewer: saved figure → {args.viewer_out}")
+        print("  Viewer: close the figure window to exit.")
+        viewer.keep_open()
+
     return 0 if overall else 1
 
 

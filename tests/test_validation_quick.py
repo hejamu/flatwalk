@@ -100,6 +100,33 @@ def test_average_log_g_leaves_unvisited_at_neg_inf():
     assert np.isfinite(log_g[[0, 1, 3, 4]]).all()
 
 
+def test_live_viewer_runs_headless(tmp_path):
+    """The viewer's callback path must work under the Agg backend (no display).
+
+    Useful so CI / headless dev environments can exercise the viewer code
+    without a window.
+    """
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer  # noqa: E402  (after env var)
+    from flatwalk.diagnostics import ProgressSnapshot
+
+    centers = np.linspace(-10.0, 10.0, 21)
+    v = wl_viewer.LiveViewer(centers, flatness_threshold=0.9, update_every_s=0.0)
+    snap = ProgressSnapshot(
+        t=1000, ln_f=0.25, in_1overt=False, n_f_stages=2,
+        g=np.linspace(0, 5, 21),
+        H=np.arange(21, dtype=np.int64) * 10,
+        visited=np.ones(21, dtype=bool),
+        bin_centers=centers,
+        flatness=0.92, acceptance_rate=0.5,
+    )
+    v.callback(snap)
+    out = tmp_path / "v.png"
+    v.save(out)
+    assert out.exists() and out.stat().st_size > 1000
+
+
 def test_wl_to_n_E_dict_excludes_unvisited():
     """``wl_to_n_E_dict`` should drop bins where ``log_g = -inf``."""
     centers = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
