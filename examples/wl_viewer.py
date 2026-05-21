@@ -595,31 +595,35 @@ def make_trajectory_movie(
     has_spins = spin_grids is not None and len(spin_grids) > 0
 
     if has_spins:
-        fig = plt.figure(figsize=(15, 9))
-        gs = fig.add_gridspec(
-            3, 3,
-            width_ratios=[20, 1, 8],
-            height_ratios=[3, 3, 2],
-            hspace=0.22, wspace=0.05,
-        )
-        ax_g = fig.add_subplot(gs[0, 0])
-        ax_H = fig.add_subplot(gs[1, 0])
-        ax_traj = fig.add_subplot(gs[2, 0])
-        cax_stage = fig.add_subplot(gs[1, 1])
-        ax_spin = fig.add_subplot(gs[:, 2])
-    else:
-        fig = plt.figure(figsize=(12, 9))
+        # Two columns: stacked plots on the left, spin grid + horizontal
+        # stage colorbar in the right column.
+        fig = plt.figure(figsize=(13, 8.5))
         gs = fig.add_gridspec(
             3, 2,
-            width_ratios=[20, 1],
+            width_ratios=[3, 1],
             height_ratios=[3, 3, 2],
-            hspace=0.22, wspace=0.05,
+            hspace=0.32, wspace=0.08,
         )
         ax_g = fig.add_subplot(gs[0, 0])
         ax_H = fig.add_subplot(gs[1, 0])
         ax_traj = fig.add_subplot(gs[2, 0])
-        cax_stage = fig.add_subplot(gs[1, 1])
+        right_gs = gs[:, 1].subgridspec(2, 1, height_ratios=[14, 1], hspace=0.12)
+        ax_spin = fig.add_subplot(right_gs[0])
+        cax_stage = fig.add_subplot(right_gs[1])
+        _colorbar_orientation = "horizontal"
+    else:
+        # No spin grid: stacked layout with the colorbar as a thin strip
+        # below the histogram panel.
+        fig = plt.figure(figsize=(11, 9))
+        gs = fig.add_gridspec(
+            4, 1, height_ratios=[3, 3, 0.18, 2], hspace=0.3,
+        )
+        ax_g = fig.add_subplot(gs[0])
+        ax_H = fig.add_subplot(gs[1])
+        cax_stage = fig.add_subplot(gs[2])
+        ax_traj = fig.add_subplot(gs[3])
         ax_spin = None
+        _colorbar_orientation = "horizontal"
 
     (line_g,) = ax_g.plot([], [], color="C0", lw=2.0, label="WL log g (shifted)")
     if log_g_exact is not None:
@@ -654,13 +658,13 @@ def make_trajectory_movie(
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
     ax_H.grid(alpha=0.3, axis="y")
 
-    # Stage → colour mapping shown as a discrete colorbar in its own axes
-    # to the right of ax_H (replaces the previous in-axes legend).
+    # Stage → colour mapping shown as a discrete colorbar (replaces the
+    # previous in-axes legend, which competed for space with the bars).
     stage_cmap = ListedColormap(list(stage_colors))
     norm = plt.Normalize(vmin=0, vmax=max(n_stages - 1, 1))
     sm = plt.cm.ScalarMappable(cmap=stage_cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, cax=cax_stage)
+    cbar = fig.colorbar(sm, cax=cax_stage, orientation=_colorbar_orientation)
     if n_stages <= 15:
         cbar.set_ticks(range(n_stages))
     cbar.set_label("f-stage")
@@ -676,7 +680,6 @@ def make_trajectory_movie(
     ax_H_right.set_ylim(0, max(1, int(max_cur_H * 1.15)))
     ax_H_right.set_ylabel("per-stage H", color="darkorange")
     ax_H_right.tick_params(axis="y", labelcolor="darkorange")
-    ax_H_right.legend(loc="upper right", fontsize=8)
 
     (line_traj,) = ax_traj.plot([], [], color="C1", lw=0.7, alpha=0.7)
     (walker_dot,) = ax_traj.plot([], [], "ro", markersize=8, zorder=5)
