@@ -33,6 +33,21 @@ class BinScheme(ABC):
     def in_range(self, q: QValue) -> bool:
         """Return True iff ``q`` lies in the binned domain (inclusive)."""
 
+    @abstractmethod
+    def value_to_index_batched(self, q: np.ndarray) -> np.ndarray:
+        """Vectorized `value_to_index` for a stack of N order-parameter values.
+
+        Returns an integer index array of length N. Out-of-range entries get
+        the sentinel index ``-1`` (rather than raising) so the batched trial
+        step can mask them — the inverse of the scalar contract, which raises.
+        Callers must not index ``g``/``H`` with a ``-1`` entry; gate on
+        `in_range_batched` first.
+        """
+
+    @abstractmethod
+    def in_range_batched(self, q: np.ndarray) -> np.ndarray:
+        """Vectorized `in_range`: boolean mask of length N (inclusive domain)."""
+
     @property
     @abstractmethod
     def n_bins(self) -> int:
@@ -127,6 +142,21 @@ class Bin1D(BinScheme):
         idx = int((x - self._low) / self._width)
         if idx == self._n_bins:
             idx = self._n_bins - 1
+        return idx
+
+    def in_range_batched(self, q: np.ndarray) -> np.ndarray:
+        x = np.asarray(q, dtype=np.float64)
+        return (x >= self._low) & (x <= self._high)
+
+    def value_to_index_batched(self, q: np.ndarray) -> np.ndarray:
+        x = np.asarray(q, dtype=np.float64)
+        idx = ((x - self._low) / self._width).astype(np.int64)
+        # Exact top edge (and float-rounding past it) folds into the top bin,
+        # matching the scalar `value_to_index(high) == n_bins - 1` convention.
+        idx[idx == self._n_bins] = self._n_bins - 1
+        # Out-of-range entries get the sentinel; do this last so it overrides
+        # the truncation above (e.g. x just above `high` rounds to n_bins).
+        idx[(x < self._low) | (x > self._high)] = -1
         return idx
 
     def index_to_center(self, idx: int) -> float:
