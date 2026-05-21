@@ -89,3 +89,78 @@ def load_checkpoint(path: Path) -> dict:
         out["walker_state"] = data["walker_state"].item()
         out["rng_state"] = data["rng_state"].item()
         return out
+
+
+# ---------------------------------------------------------------------------
+# Batched (N-walker) checkpoints
+#
+# A parallel format for `WLDriver.run_batched`. The scalar `bin_current`,
+# `walker_energy` become per-walker arrays, and per-walker counters are kept
+# so a resumed run reproduces the trace acceptance rate too. Kept as separate
+# functions so the scalar checkpoint format above stays byte-for-byte intact.
+# ---------------------------------------------------------------------------
+
+_BATCH_ARRAY_KEYS = (
+    "g",
+    "H",
+    "visited",
+    "bin_edges",
+    "bin_centers",
+    "bin_current",
+    "energy",
+    "n_attempted",
+    "n_accepted",
+)
+_BATCH_SCALAR_KEYS = (
+    "n_bins",
+    "t_total",
+    "n_f_stages",
+    "ln_f",
+    "in_1overt",
+    "n_walkers",
+)
+_BATCH_OBJECT_KEYS = ("walker_state", "rng_state")
+
+
+def save_checkpoint_batched(path: Path, **fields: Any) -> None:
+    """Atomically persist an N-walker checkpoint (numpy ``.npz``).
+
+    Required keys: g, H, visited, bin_edges, bin_centers, bin_current[N],
+    energy[N], n_attempted[N], n_accepted[N], n_bins, t_total, n_f_stages,
+    ln_f, in_1overt, n_walkers, walker_state, rng_state.
+    """
+    path = Path(path)
+    if path.suffix != ".npz":
+        path = path.with_suffix(path.suffix + ".npz")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+
+    bundle: dict[str, np.ndarray] = {}
+    for k in _BATCH_ARRAY_KEYS:
+        bundle[k] = np.asarray(fields[k])
+    for k in _BATCH_SCALAR_KEYS:
+        bundle[k] = np.asarray(fields[k])
+    for k in _BATCH_OBJECT_KEYS:
+        bundle[k] = _box(fields[k])
+
+    with open(tmp, "wb") as fh:
+        np.savez(fh, **bundle)
+    os.replace(tmp, path)
+
+
+def load_checkpoint_batched(path: Path) -> dict:
+    """Load an N-walker checkpoint into a dict the driver can consume."""
+    path = Path(path)
+    with np.load(path, allow_pickle=True) as data:
+        out: dict[str, Any] = {}
+        for k in _BATCH_ARRAY_KEYS:
+            out[k] = np.asarray(data[k])
+        out["n_bins"] = int(data["n_bins"])
+        out["t_total"] = int(data["t_total"])
+        out["n_f_stages"] = int(data["n_f_stages"])
+        out["ln_f"] = float(data["ln_f"])
+        out["in_1overt"] = bool(data["in_1overt"])
+        out["n_walkers"] = int(data["n_walkers"])
+        out["walker_state"] = data["walker_state"].item()
+        out["rng_state"] = data["rng_state"].item()
+        return out

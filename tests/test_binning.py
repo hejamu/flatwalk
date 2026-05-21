@@ -151,3 +151,46 @@ def test_bin1d_is_a_bin_scheme():
 def test_bin_scheme_cannot_be_instantiated_directly():
     with pytest.raises(TypeError):
         BinScheme()  # type: ignore[abstract]
+
+
+# ---- batched indexing (≥2-walker path) ----------------------------------------
+
+
+def test_value_to_index_batched_matches_scalar_in_range():
+    """The batched index must agree with the scalar one for every in-range q."""
+    rng = np.random.default_rng(1)
+    b = Bin1D(-3.0, 7.0, 41)
+    q = rng.uniform(-3.0, 7.0, size=5000)
+    idx_batched = b.value_to_index_batched(q)
+    idx_scalar = np.array([b.value_to_index(x) for x in q])
+    np.testing.assert_array_equal(idx_batched, idx_scalar)
+
+
+def test_value_to_index_batched_top_edge_folds_into_top_bin():
+    b = Bin1D(0.0, 10.0, 5)  # width 2
+    q = np.array([0.0, 1.999, 2.0, 8.0, 10.0])
+    np.testing.assert_array_equal(b.value_to_index_batched(q), [0, 0, 1, 4, 4])
+
+
+def test_value_to_index_batched_out_of_range_gets_sentinel():
+    b = Bin1D(0.0, 1.0, 10)
+    q = np.array([-0.01, -100.0, 0.0, 0.5, 1.0, 1.0 + 1e-9, 5.0])
+    idx = b.value_to_index_batched(q)
+    # OOR entries → -1; in-range entries are valid indices in [0, n_bins).
+    np.testing.assert_array_equal(idx < 0, [True, True, False, False, False, True, True])
+    valid = idx[idx >= 0]
+    assert np.all((valid >= 0) & (valid < b.n_bins))
+
+
+def test_in_range_batched_matches_scalar():
+    b = Bin1D(-2.0, 3.0, 7)
+    q = np.array([-2.0, -2.0 - 1e-9, 0.0, 3.0, 3.0 + 1e-9, 100.0, -100.0])
+    expected = np.array([b.in_range(x) for x in q])
+    np.testing.assert_array_equal(b.in_range_batched(q), expected)
+
+
+def test_batched_methods_preserve_input_length():
+    b = Bin1D(0.0, 1.0, 4)
+    q = np.linspace(0.0, 1.0, 13)
+    assert b.value_to_index_batched(q).shape == (13,)
+    assert b.in_range_batched(q).shape == (13,)

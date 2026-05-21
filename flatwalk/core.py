@@ -19,6 +19,7 @@ Architectural notes
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import time
@@ -32,13 +33,25 @@ import numpy as np
 from .binning import BinScheme
 from .diagnostics import TraceRow, TraceWriter
 from .exchange import ExchangeHandler
-from .walker import Walker
+from .walker import Walker, WalkerBatch
 
 logger = logging.getLogger(__name__)
 
 EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], float | np.ndarray]
 ProposeMoveFn = Callable[[Any, np.random.Generator], tuple[Any, float]]
+
+# Batched callbacks for ≥2 walkers (docs §4). Each takes one opaque
+# ``state_batch`` carrying N walkers and operates on all N at once — one
+# stacked call per tick, never a Python loop over walkers. ``state_batch`` is
+# opaque to the driver exactly as scalar ``state`` is; the driver only ever
+# applies accepted moves to it via boolean-mask assignment, so it must support
+# that (a stacked ``ndarray[N, ...]`` or ``torch.Tensor`` does).
+BatchedEnergyFn = Callable[[Any], np.ndarray]  # state_batch -> E[N]
+BatchedOrderParamFn = Callable[[Any], np.ndarray]  # state_batch -> Q[N] (or Q[N, D])
+BatchedProposeMoveFn = Callable[
+    [Any, np.random.Generator], tuple[Any, np.ndarray]
+]  # (state_batch, rng) -> (new_state_batch, log_proposal_ratio[N])
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +120,10 @@ class WLResult:
     bin_current: int = -1
     walker_energy: float = float("nan")
     rng_state: dict | None = None
+    # Populated by the batched path; left at the scalar defaults otherwise.
+    n_walkers: int = 1
+    walker_bins: np.ndarray | None = None
+    walker_energies: np.ndarray | None = None
     extra: dict = field(default_factory=dict)
 
 
@@ -157,6 +174,44 @@ def attempt_halve(ln_f: float, t: int, in_1overt: bool) -> tuple[float, bool]:
     if t > 0 and halved < 1.0 / t:
         return (1.0 / t, True)
     return (halved, False)
+
+
+def build_trace_row(
+    *,
+    t: int,
+    ln_f: float,
+    flatness: float,
+    acceptance_rate: float,
+    H: np.ndarray,
+    visited: np.ndarray,
+    in_1overt: bool,
+    stage_index: int,
+) -> TraceRow:
+    """Assemble one diagnostic row from the live driver state.
+
+    Factored out so the scalar and batched loops emit identical trace columns
+    without copying the min/mean/max-over-visited reduction.
+    """
+    if visited.any():
+        hv = H[visited]
+        min_H = int(hv.min())
+        max_H = int(hv.max())
+        mean_H = float(hv.mean())
+    else:
+        min_H = max_H = 0
+        mean_H = 0.0
+    return TraceRow(
+        t=t,
+        ln_f=ln_f,
+        flatness=flatness,
+        acceptance_rate=acceptance_rate,
+        min_H_visited=min_H,
+        max_H_visited=max_H,
+        mean_H_visited=mean_H,
+        n_visited=int(visited.sum()),
+        in_1overt=in_1overt,
+        stage_index=stage_index,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +271,66 @@ class WLDriver:
         if accepted:
             walker.n_accepted += 1
         return accepted
+
+    # ---- batched per-trial logic (N walkers, one tick, no Python loop) ------
+
+    def _trial_step_batched(
+        self,
+        wb: WalkerBatch,
+        g: np.ndarray,
+        H: np.ndarray,
+        visited: np.ndarray,
+        ln_f: float,
+        energy_fn: BatchedEnergyFn,
+        order_parameter_fn: BatchedOrderParamFn,
+        propose_move_fn: BatchedProposeMoveFn,
+        beta: float,
+    ) -> np.ndarray:
+        """Execute one trial for all N walkers at once. Returns the accept mask.
+
+        Mutates ``wb``, ``g``, ``H``, and ``visited`` in place. Six vectorised
+        ops, no ``for w in walkers`` (docs §4). Mirrors `_trial_step`'s
+        acceptance and reflecting-boundary conventions per walker.
+        """
+        new_state, log_proposal_ratio = propose_move_fn(wb.state, wb.rng)
+        q_new = np.asarray(order_parameter_fn(new_state))
+        in_range = self.bin_scheme.in_range_batched(q_new)
+        bin_new = self.bin_scheme.value_to_index_batched(q_new)  # -1 where OOR
+
+        if beta != 0.0:
+            e_new = np.asarray(energy_fn(new_state), dtype=np.float64)
+        else:
+            # Energy term drops out; skip the (expensive, batched) energy call.
+            e_new = wb.energy
+
+        # Never index g with the -1 sentinel: out-of-range walkers compare the
+        # current bin against itself (Δ contribution 0) and are masked out below.
+        safe_bin_new = np.where(in_range, bin_new, wb.bin_current)
+        delta = (
+            -beta * (e_new - wb.energy)
+            + g[wb.bin_current]
+            - g[safe_bin_new]
+            + np.asarray(log_proposal_ratio, dtype=np.float64)
+        )
+        u = wb.rng.random(wb.n_walkers)
+        # exp(min(0, Δ)) keeps the exponential ≤ 1 (no overflow); the Δ ≥ 0
+        # branch already accepts. Out-of-range proposals are rejected.
+        accept = in_range & ((delta >= 0.0) | (u < np.exp(np.minimum(delta, 0.0))))
+
+        if accept.any():
+            wb.state[accept] = new_state[accept]
+        wb.bin_current = np.where(accept, bin_new, wb.bin_current)
+        if beta != 0.0:
+            wb.energy = np.where(accept, e_new, wb.energy)
+
+        # Scatter the post-trial bins. np.add.at is the safe scatter for the
+        # repeated indices that arise when several walkers share a bin.
+        np.add.at(g, wb.bin_current, ln_f)
+        np.add.at(H, wb.bin_current, 1)
+        visited[wb.bin_current] = True
+        wb.n_attempted += 1
+        wb.n_accepted += accept.astype(np.int64)
+        return accept
 
     # ---- main loop ---------------------------------------------------------
 
@@ -494,6 +609,295 @@ class WLDriver:
             bin_current=walker.bin_current,
             walker_energy=walker.energy,
             rng_state=_capture_rng(walker.rng),
+            extra={"interrupted": interrupted},
+        )
+
+    # ---- batched main loop -------------------------------------------------
+
+    def run_batched(
+        self,
+        initial_state: Any,
+        energy_fn: BatchedEnergyFn,
+        order_parameter_fn: BatchedOrderParamFn,
+        propose_move_fn: BatchedProposeMoveFn,
+        n_walkers: int,
+        *,
+        max_trials: int | None = None,
+        rng: np.random.Generator | None = None,
+        resume_from: Path | None = None,
+        exchange_handler: ExchangeHandler | None = None,
+    ) -> WLResult:
+        """Run N walkers through a shared ``g`` as one batch (docs §4).
+
+        The N walkers advance together: each tick is one stacked call to each
+        batched callback, never a Python loop over walkers. All N contribute to
+        the *same* ``g``/``H`` via a scatter add, so a single window converges
+        faster than one walker would.
+
+        ``t_total`` counts individual moves (``n_walkers`` per tick), so the
+        1/t-WL schedule, ``n_check``, ``checkpoint_every_t``, and ``max_trials``
+        all use the same units as the scalar `run`; with ``n_walkers == 1`` the
+        bookkeeping reduces to the scalar schedule exactly.
+
+        Replica exchange (per-window ``g``) is docs §5 and not wired here yet;
+        passing ``exchange_handler`` raises ``NotImplementedError``.
+        """
+        from .io import (  # local to avoid cycle
+            load_checkpoint_batched,
+            save_checkpoint_batched,
+        )
+
+        if exchange_handler is not None:
+            raise NotImplementedError(
+                "batched replica exchange is not implemented yet (docs §5); "
+                "run_batched currently supports a single shared-g window."
+            )
+        if n_walkers < 1:
+            raise ValueError(f"n_walkers must be ≥ 1; got {n_walkers}")
+
+        cfg = self.config
+        n = self.bin_scheme.n_bins
+
+        # ---------- initialize from checkpoint or fresh ----------
+        if resume_from is not None:
+            cp = load_checkpoint_batched(Path(resume_from))
+            if cp["n_bins"] != n:
+                raise ValueError(
+                    f"checkpoint n_bins ({cp['n_bins']}) ≠ driver n_bins ({n})"
+                )
+            if cp["n_walkers"] != n_walkers:
+                raise ValueError(
+                    f"checkpoint n_walkers ({cp['n_walkers']}) ≠ "
+                    f"requested n_walkers ({n_walkers})"
+                )
+            g = cp["g"].astype(np.float64, copy=True)
+            H = cp["H"].astype(np.int64, copy=True)
+            visited = cp["visited"].astype(bool, copy=True)
+            t = int(cp["t_total"])
+            n_f_stages = int(cp["n_f_stages"])
+            ln_f = float(cp["ln_f"])
+            in_1overt = bool(cp["in_1overt"])
+            batch_state = cp["walker_state"]
+            bin_current = cp["bin_current"].astype(np.int64, copy=True)
+            energy = cp["energy"].astype(np.float64, copy=True)
+            n_attempted = cp["n_attempted"].astype(np.int64, copy=True)
+            n_accepted = cp["n_accepted"].astype(np.int64, copy=True)
+            rng = _restore_rng(cp["rng_state"])
+        else:
+            if rng is None:
+                rng = np.random.default_rng()
+            g = np.zeros(n, dtype=np.float64)
+            H = np.zeros(n, dtype=np.int64)
+            visited = np.zeros(n, dtype=bool)
+            t = 0
+            n_f_stages = 0
+            ln_f = cfg.ln_f_initial
+            in_1overt = False
+            # Accepted moves are applied in place (boolean-mask assignment), so
+            # copy first — the driver must not mutate the caller's input.
+            batch_state = copy.deepcopy(initial_state)
+            q_initial = np.asarray(order_parameter_fn(batch_state))
+            if q_initial.shape[0] != n_walkers:
+                raise ValueError(
+                    f"order_parameter_fn returned {q_initial.shape[0]} values; "
+                    f"expected n_walkers={n_walkers}"
+                )
+            if not self.bin_scheme.in_range_batched(q_initial).all():
+                raise ValueError("one or more initial states are outside the bin domain")
+            bin_current = self.bin_scheme.value_to_index_batched(q_initial).astype(np.int64)
+            if cfg.beta != 0.0:
+                energy = np.asarray(energy_fn(batch_state), dtype=np.float64).copy()
+            else:
+                # Energy term drops out; per-walker energy stays zero (unused).
+                energy = np.zeros(n_walkers, dtype=np.float64)
+            n_attempted = np.zeros(n_walkers, dtype=np.int64)
+            n_accepted = np.zeros(n_walkers, dtype=np.int64)
+
+        wb = WalkerBatch(
+            state=batch_state,
+            bin_current=bin_current,
+            energy=energy,
+            rng=rng,
+            n_attempted=n_attempted,
+            n_accepted=n_accepted,
+        )
+        # Starting bins count as visited so the flatness math is sane.
+        visited[wb.bin_current] = True
+
+        trace_writer = TraceWriter(cfg.trace_path)
+        converged = False
+        interrupted = False
+        wall_stage_start = time.perf_counter()
+
+        logger.info(
+            "WL batched run start: n_walkers=%d, n_bins=%d, ln_f=%.3g → %.3g, "
+            "n_check=%d, t0=%d, in_1overt=%s",
+            n_walkers,
+            n,
+            ln_f,
+            cfg.ln_f_final,
+            cfg.n_check,
+            t,
+            in_1overt,
+        )
+
+        def _crossed(boundary: int, lo: int, hi: int) -> bool:
+            # A multiple of ``boundary`` lies in (lo, hi]. t jumps by n_walkers
+            # per tick, so exact ``t % boundary == 0`` is unreliable; this fires
+            # the schedule once per window and is a deterministic function of t.
+            return (hi // boundary) != (lo // boundary)
+
+        def _save() -> None:
+            save_checkpoint_batched(
+                Path(cfg.checkpoint_path),
+                g=g,
+                H=H,
+                visited=visited,
+                bin_edges=self.bin_scheme.edges,
+                bin_centers=self.bin_scheme.centers,
+                bin_current=wb.bin_current,
+                energy=wb.energy,
+                n_attempted=wb.n_attempted,
+                n_accepted=wb.n_accepted,
+                n_bins=n,
+                t_total=t,
+                n_f_stages=n_f_stages,
+                ln_f=ln_f,
+                in_1overt=in_1overt,
+                n_walkers=n_walkers,
+                walker_state=wb.state,
+                rng_state=_capture_rng(wb.rng),
+            )
+
+        with trace_writer:
+            try:
+                while True:
+                    # ---- stop checks (evaluated before the next tick) ----
+                    if ln_f < cfg.ln_f_final:
+                        converged = True
+                        break
+                    if max_trials is not None and t >= max_trials:
+                        break
+
+                    # ---- one batched tick (n_walkers moves) ----
+                    t_before = t
+                    self._trial_step_batched(
+                        wb,
+                        g,
+                        H,
+                        visited,
+                        ln_f,
+                        energy_fn,
+                        order_parameter_fn,
+                        propose_move_fn,
+                        cfg.beta,
+                    )
+                    t += n_walkers
+
+                    # ---- 1/t regime: continuously update ln_f ----
+                    if in_1overt:
+                        ln_f = 1.0 / t
+
+                    # ---- periodic check ----
+                    if _crossed(cfg.n_check, t_before, t):
+                        flatness = compute_flatness(H, visited)
+                        wrote_stage_transition = False
+
+                        if not in_1overt and flatness >= cfg.flatness_threshold:
+                            new_ln_f, new_in_1overt = attempt_halve(ln_f, t, False)
+                            wall_stage = time.perf_counter() - wall_stage_start
+                            logger.info(
+                                "f-stage %d→%d at t=%d: ln_f %.6g → %.6g, "
+                                "flatness=%.3f, n_visited=%d, dt_stage=%.2fs",
+                                n_f_stages,
+                                n_f_stages + 1,
+                                t,
+                                ln_f,
+                                new_ln_f,
+                                flatness,
+                                int(visited.sum()),
+                                wall_stage,
+                            )
+                            if new_in_1overt:
+                                logger.info(
+                                    "Entering 1/t-WL regime at t=%d, ln_f=%.6g",
+                                    t,
+                                    new_ln_f,
+                                )
+                            ln_f = new_ln_f
+                            in_1overt = new_in_1overt
+                            if not in_1overt:
+                                H[:] = 0
+                            if visited.any():
+                                g -= float(g[visited].min())
+                            n_f_stages += 1
+                            wall_stage_start = time.perf_counter()
+                            wrote_stage_transition = True
+
+                        trace_writer.write(
+                            build_trace_row(
+                                t=t,
+                                ln_f=ln_f,
+                                flatness=flatness,
+                                acceptance_rate=wb.acceptance_rate(),
+                                H=H,
+                                visited=visited,
+                                in_1overt=in_1overt,
+                                stage_index=n_f_stages,
+                            )
+                        )
+                        if not wrote_stage_transition:
+                            logger.debug(
+                                "check at t=%d: ln_f=%.3g flatness=%.3f accept=%.3f",
+                                t,
+                                ln_f,
+                                flatness,
+                                wb.acceptance_rate(),
+                            )
+                        wb.reset_counters()
+
+                    # ---- periodic checkpoint ----
+                    if cfg.checkpoint_path is not None and _crossed(
+                        cfg.checkpoint_every_t, t_before, t
+                    ):
+                        _save()
+
+            except KeyboardInterrupt:
+                interrupted = True
+                logger.info("Batched run interrupted at t=%d, ln_f=%.6g", t, ln_f)
+
+        # ---- finalize ----
+        if cfg.checkpoint_path is not None:
+            _save()
+
+        logger.info(
+            "WL batched run end: converged=%s interrupted=%s t=%d ln_f=%.6g "
+            "n_f_stages=%d n_visited=%d/%d",
+            converged,
+            interrupted,
+            t,
+            ln_f,
+            n_f_stages,
+            int(visited.sum()),
+            n,
+        )
+
+        return WLResult(
+            g=g,
+            H=H,
+            visited=visited,
+            bin_edges=self.bin_scheme.edges,
+            bin_centers=self.bin_scheme.centers,
+            t_total=t,
+            n_f_stages=n_f_stages,
+            ln_f_final=ln_f,
+            converged=converged,
+            final_state=wb.state,
+            in_1overt=in_1overt,
+            n_walkers=n_walkers,
+            walker_bins=wb.bin_current,
+            walker_energies=wb.energy,
+            rng_state=_capture_rng(wb.rng),
             extra={"interrupted": interrupted},
         )
 
