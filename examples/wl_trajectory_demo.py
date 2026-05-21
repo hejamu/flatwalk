@@ -40,6 +40,18 @@ import ising  # noqa: E402
 from flatwalk import Bin1D, WLConfig, WLDriver  # noqa: E402
 
 
+def _parse_schedule(s: str) -> list[tuple[int, int]]:
+    """``"1500:1,30000:20,1000000:280"`` → ``[(1500, 1), (30000, 20), (1000000, 280)]``."""
+    segments: list[tuple[int, int]] = []
+    for seg in s.split(","):
+        seg = seg.strip()
+        if not seg:
+            continue
+        t_end_s, stride_s = seg.split(":")
+        segments.append((int(t_end_s), int(stride_s)))
+    return segments
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-L", type=int, default=8)
@@ -53,11 +65,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="if given (and < n-trials), choose this many "
                              "log-spaced frames so the playback appears to "
                              "speed up as the histogram approaches flatness")
+    parser.add_argument("--schedule", type=str, default=None,
+                        help="piecewise frame schedule "
+                             "'t_end1:stride1,t_end2:stride2,...' "
+                             "(overrides --n-frames; e.g. '1500:1,30000:20,1000000:280')")
     parser.add_argument("--n-check", type=int, default=None,
                         help="WL flatness-check period during the demo "
                              "(default: 2*n_trials, i.e. no halve fires)")
-    parser.add_argument("--flatness", type=float, default=0.7,
-                        help="WL flatness threshold during the demo (default 0.7)")
+    parser.add_argument("--flatness", type=float, default=0.8,
+                        help="WL flatness threshold during the demo (default 0.8)")
     parser.add_argument("--cache-dir", type=Path,
                         default=EXAMPLES / "cache",
                         help="Beale cache directory (read-only here)")
@@ -121,9 +137,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s")
 
-    n_frames = args.n_frames if args.n_frames is not None else len(recorder.t)
-    print(f"Rendering {n_frames} frames ({'log-spaced' if args.n_frames else 'every trial'}) "
-          f"→ {args.output} ...")
+    frame_schedule = _parse_schedule(args.schedule) if args.schedule else None
+    if frame_schedule is not None:
+        print(f"Rendering with piecewise schedule {frame_schedule} → {args.output} ...")
+    elif args.n_frames is not None:
+        print(f"Rendering {args.n_frames} log-spaced frames → {args.output} ...")
+    else:
+        print(f"Rendering {len(recorder.t)} frames (every trial) → {args.output} ...")
     t0 = time.perf_counter()
     make_trajectory_movie(
         recorder.as_arrays(),
@@ -133,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
         title=f"Wang-Landau trajectory   |   L={args.L} Ising",
         fps=args.fps,
         n_frames=args.n_frames,
+        frame_schedule=frame_schedule,
+        flatness_threshold=args.flatness,
     )
     print(f"  rendered in {time.perf_counter() - t0:.1f}s → {args.output}")
     return 0

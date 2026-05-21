@@ -373,6 +373,38 @@ class TrialRecorder:
         }
 
 
+def build_frame_indices_from_schedule(schedule, n_recorded: int) -> np.ndarray:
+    """Build a list of trial indices to render from a piecewise stride schedule.
+
+    ``schedule`` is a sequence of ``(t_end, stride)`` tuples. Frames are
+    emitted for ``range(prev_end, t_end, stride)`` per segment. The last
+    valid trial index is always included to anchor the animation.
+
+    Example::
+
+        schedule = [(1500, 1), (30_000, 20), (1_000_000, 300)]
+        # → trials 0,1,2,...,1499, then 1500,1520,...,29980,
+        #   then 30000,30300,...,999900, then 999999.
+    """
+    indices: list[int] = []
+    start = 0
+    for end, stride in schedule:
+        end = min(int(end), n_recorded)
+        stride = max(1, int(stride))
+        if end > start:
+            indices.extend(range(start, end, stride))
+        start = end
+        if start >= n_recorded:
+            break
+    if start < n_recorded:
+        # remaining tail at the last stride
+        last_stride = max(1, int(schedule[-1][1]))
+        indices.extend(range(start, n_recorded, last_stride))
+    if not indices or indices[-1] != n_recorded - 1:
+        indices.append(n_recorded - 1)
+    return np.array(sorted(set(indices)), dtype=np.int64)
+
+
 def make_trajectory_movie(
     history,
     output_path,
@@ -382,6 +414,8 @@ def make_trajectory_movie(
     title: str = "Wang-Landau trajectory",
     fps: int = 30,
     n_frames: Optional[int] = None,
+    frame_schedule: Optional[list] = None,
+    flatness_threshold: float = 0.8,
     dpi: int = 110,
 ) -> None:
     """Per-trial animation: walker hopping between bins, with H and ``g`` building up.
@@ -405,6 +439,16 @@ def make_trajectory_movie(
     walker advances one-step-at-a-time early on and skips through more
     trials per frame later. Combined with constant playback FPS, this
     makes the video "speed up" as the histogram approaches flatness.
+
+    ``frame_schedule`` (preferred over ``n_frames`` when given) is a list
+    of ``(t_end, stride)`` segments giving piecewise-constant playback
+    speed. See :func:`build_frame_indices_from_schedule`.
+
+    The middle panel also shows the **current-stage** ``H(E)`` as an
+    orange line on a secondary right-hand axis — this is what the
+    algorithm actually evaluates against ``flatness_threshold``. The
+    line resets to zero whenever a halve fires; its ``min/mean`` ratio
+    is the flatness number printed in the title.
     """
     from pathlib import Path
 
@@ -441,7 +485,9 @@ def make_trajectory_movie(
     n_stages = int(stage_at_trial[-1]) + 1
 
     # ---- choose frame indices ----
-    if n_frames is None or n_frames >= n_recorded:
+    if frame_schedule is not None:
+        frame_indices = build_frame_indices_from_schedule(frame_schedule, n_recorded)
+    elif n_frames is None or n_frames >= n_recorded:
         frame_indices = np.arange(n_recorded, dtype=np.int64)
     else:
         log_idx = np.linspace(0.0, np.log(n_recorded), n_frames)
@@ -450,33 +496,50 @@ def make_trajectory_movie(
 
     # ---- precompute per-frame state ----
     # H is *cumulative* (no halve reset); broken down per stage so the
-    # renderer can stack the bars by stage colour.
+    # renderer can stack the bars by stage colour. We also keep the
+    # *current-stage* H separately so the algorithm's flatness check is
+    # plottable.
     n_frames_actual = len(frame_indices)
     cum_g = np.zeros((n_frames_actual, n_bins), dtype=np.float64)
     cum_H_stage = np.zeros((n_frames_actual, n_stages, n_bins), dtype=np.int64)
+    cur_stage_H_at_frame = np.zeros((n_frames_actual, n_bins), dtype=np.int64)
     visited_at_frame = np.zeros((n_frames_actual, n_bins), dtype=bool)
     stage_at_frame = np.zeros(n_frames_actual, dtype=np.int64)
     halve_at_frame = np.zeros(n_frames_actual, dtype=bool)
+    flatness_at_frame = np.zeros(n_frames_actual, dtype=np.float64)
 
     g_run = np.zeros(n_bins, dtype=np.float64)
     H_stage_run = np.zeros((n_stages, n_bins), dtype=np.int64)
+    cur_stage_H = np.zeros(n_bins, dtype=np.int64)
     v_run = np.zeros(n_bins, dtype=bool)
+    current_stage_seen = 0
 
     next_frame = 0
     prev_stage_for_frame = 0
     for j in range(n_recorded):
         b = int(bin_arr[j])
         s = int(stage_at_trial[j])
+        if s != current_stage_seen:
+            # New stage starts — reset the per-stage H tracker.
+            cur_stage_H[:] = 0
+            current_stage_seen = s
         g_run[b] += float(ln_f_arr[j])
         H_stage_run[s, b] += 1
+        cur_stage_H[b] += 1
         v_run[b] = True
         if next_frame < n_frames_actual and j == int(frame_indices[next_frame]):
             cum_g[next_frame] = g_run
             cum_H_stage[next_frame] = H_stage_run
+            cur_stage_H_at_frame[next_frame] = cur_stage_H
             visited_at_frame[next_frame] = v_run
             stage_at_frame[next_frame] = s
             halve_at_frame[next_frame] = (s > prev_stage_for_frame)
             prev_stage_for_frame = s
+            # Flatness of current per-stage H over visited bins.
+            mask = v_run
+            hv = cur_stage_H[mask]
+            if hv.size > 0 and hv.mean() > 0:
+                flatness_at_frame[next_frame] = float(hv.min()) / float(hv.mean())
             next_frame += 1
 
     # ---- sub-sample dense trajectory for plotting (≤ ~3000 points) ----
@@ -532,7 +595,20 @@ def make_trajectory_movie(
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
     ax_H.grid(alpha=0.3, axis="y")
     if n_stages > 1:
-        ax_H.legend(loc="upper right", fontsize=8, ncol=min(n_stages, 6))
+        ax_H.legend(loc="upper left", fontsize=7, ncol=min(n_stages, 6))
+
+    # Per-stage H overlay on the right-hand axis (what the algorithm
+    # checks against ``flatness_threshold``).
+    ax_H_right = ax_H.twinx()
+    (line_cur_stage,) = ax_H_right.plot(
+        [], [], color="darkorange", lw=2.4, marker="o", markersize=3.5,
+        alpha=0.95, label="current-stage H",
+    )
+    max_cur_H = int(cur_stage_H_at_frame.max()) if cur_stage_H_at_frame.size > 0 else 1
+    ax_H_right.set_ylim(0, max(1, int(max_cur_H * 1.15)))
+    ax_H_right.set_ylabel("per-stage H", color="darkorange")
+    ax_H_right.tick_params(axis="y", labelcolor="darkorange")
+    ax_H_right.legend(loc="upper right", fontsize=8)
 
     (line_traj,) = ax_traj.plot([], [], color="C1", lw=0.7, alpha=0.7)
     (walker_dot,) = ax_traj.plot([], [], "ro", markersize=8, zorder=5)
@@ -575,18 +651,27 @@ def make_trajectory_movie(
         ax_H.set_ylim(0, max(1, total_H + 1))
         current_line.set_xdata([bin_centers[b], bin_centers[b]])
 
+        # Current-stage H overlay (right axis).
+        cur_H_f = cur_stage_H_at_frame[i]
+        line_cur_stage.set_data(bin_centers[v_frame], cur_H_f[v_frame])
+
         traj_end = int(traj_idx_for_frame[i]) + 1
         line_traj.set_data(traj_t[:traj_end], traj_E[:traj_end])
         walker_dot.set_data([t_arr[idx]], [energy_arr[idx]])
 
         halve_tag = f"  ← halve to stage {int(stage_at_frame[i])}" if halve_at_frame[i] else ""
+        flat = float(flatness_at_frame[i])
+        flat_tag = (
+            f"flatness {flat:.3f} / {flatness_threshold:.2f}"
+            if flat > 0 else "flatness —"
+        )
         fig.suptitle(
             f"{title}    trial {int(t_arr[idx]):,}    "
             f"bin E = {bin_centers[b]:+.0f}    "
             f"ln_f = {float(ln_f_arr[idx]):.3g}    "
             f"stage {int(stage_at_frame[i])}/{n_stages - 1}    "
-            f"n_visited = {int(v_frame.sum())}/{n_bins}    "
-            f"{'accepted' if bool(accepted_arr[idx]) else 'rejected'}"
+            f"{flat_tag}    "
+            f"n_visited = {int(v_frame.sum())}/{n_bins}"
             f"{halve_tag}"
         )
         return ()
