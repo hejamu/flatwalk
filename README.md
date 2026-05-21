@@ -127,56 +127,22 @@ full pass/fail run.
 
 ## Validation: 2D Ising
 
-The driver is validated against the exact density of states `n(E)` for the
-2D Ising model on an L×L torus, computed via a Beale-style transfer-matrix
-recursion with modular CRT (see [examples/beale.py](examples/beale.py)).
-
-[examples/ising_validation.py](examples/ising_validation.py) runs the
-driver to `ln_f_final = 1e-8` on L=8 and compares against Beale:
+The driver is validated end-to-end against the exact density of states
+`n(E)` for the 2D Ising model on an L×L periodic lattice, computed via a
+Beale-style transfer-matrix recursion. The full methodology, pass
+criteria, and the script-level tuning choices used to meet them are
+described in [docs/src/validation.md](docs/src/validation.md); the
+short version is:
 
 ```bash
 .venv/bin/python examples/ising_validation.py --seed 0
 ```
 
-Pass criteria (spec §4.4):
-- `max ε(E) < 0.05` over visited central bins (excluding the two extremes).
-- `mean ε(E) < 0.01`.
-- `max |⟨E⟩_WL − ⟨E⟩_exact| / |⟨E⟩_exact| < 0.5%` over T ∈ [1, 4].
-- C_V peak temperature within 2% of exact.
-
-Beale's recursion is cross-validated against brute-force enumeration on
-L=3 (512 configs) and L=4 (65,536 configs) in
-[tests/test_beale.py](tests/test_beale.py).
-
-A `--quick` flag runs to `ln_f_final = 1e-5` (~30 s) for smoke testing the
-pipeline; the resulting `g_WL` will NOT meet the spec criteria but is
-useful for development.
-
-### Divergences from spec, and why
-
-To meet the spec §4.4 pass criteria on L=8 (`max ε < 5%`, `mean ε < 1%`)
-the validation script makes two script-level tuning choices and one
-multi-run averaging choice, *none of which touch the `flatwalk` driver*:
-
-1. **WL hyperparameters** `n_check = 1000`, `flatness_threshold = 0.95`
-   (spec defaults: 10_000, 0.8). The spec marks both as "Tunable" in
-   §1.5, so this is within bounds. Smaller `n_check` triggers the 1/t
-   regime sooner; stricter flatness gives each f-stage more samples so
-   `g[bin]` is better-equilibrated at each halving.
-
-2. **Multi-seed averaging** (`--n-seeds 3`). A single-seed single-walker
-   1/t-WL on L=8 produces a `g_WL` with ~5–10% per-bin error in the
-   high-|E| tails. The asymmetry is *between* `E` and `−E` and arises
-   from the trajectory: the walker reaches one tail before the other and
-   accumulates more early (large-`ln_f`) updates there. Averaging the
-   `log g` arrays from `K` independent seeds reduces the variance by
-   `~1/K`. This is standard practice in WL literature; REWL (see
-   [`flatwalk.exchange`](flatwalk/exchange.py)) is the more elegant
-   solution but is out of scope for M3.
-
-   `--n-seeds 1` recovers the pure spec interpretation ("Run the
-   driver"). The driver itself is single-walker and bit-identical on a
-   fixed seed.
+Runs 3 independent seeds to `ln_f_final = 1e-8`, averages the per-seed
+`log g`, compares to Beale's exact `n(E)`, and exits 0 only if all four
+spec §4.4 criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
+within 0.5%, `C_V` peak temperature within 2%). The slow lane of CI
+runs this on every push.
 
 ## Architectural notes (for future extension)
 
@@ -223,26 +189,23 @@ within statistical noise.
 ## Layout
 
 ```
-flatwalk/
-  binning.py        — BinScheme ABC + Bin1D
-  walker.py         — Walker dataclass
-  core.py           — WLConfig, WLResult, WLDriver
-  exchange.py       — ExchangeHandler ABC (REWL hook)
-  diagnostics.py    — TraceWriter + TraceRow + read_trace
-  io.py             — save_checkpoint / load_checkpoint
-tests/
-  test_binning.py
-  test_diagnostics.py
-  test_core.py
-  test_checkpoint.py
-  test_beale.py
-  test_ising.py
-  test_imports.py
-examples/
-  beale.py             — Exact n(E) via transfer matrix + CRT
-  ising.py             — Ising callbacks for the WL driver
-  ising_validation.py  — end-to-end pass/fail run
-  cache/               — Beale results cached as TSV (created on first run)
+flatwalk/             — the package
+  binning.py            BinScheme ABC + Bin1D
+  walker.py             Walker dataclass
+  core.py               WLConfig, WLResult, WLDriver
+  exchange.py           ExchangeHandler ABC (REWL hook)
+  diagnostics.py        TraceWriter + TraceRow + read_trace
+  io.py                 save_checkpoint / load_checkpoint
+tests/                — pytest suite
+  test_binning.py / test_core.py / test_checkpoint.py / test_diagnostics.py
+  test_imports.py / test_ising.py / test_beale.py / test_validation_quick.py
+examples/             — user-side code that fills the contract
+  beale.py              Exact n(E) via transfer matrix + CRT
+  ising.py              Ising callbacks for the WL driver
+  ising_validation.py   End-to-end pass/fail run
+  cache/                Beale results cached as TSV (created on first run)
+docs/src/             — Sphinx documentation source
+tox.ini               — tests / lint / format / docs / build envs
 ```
 
 ## License
