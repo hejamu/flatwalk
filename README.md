@@ -1,19 +1,25 @@
 # flatwalk
 
-A production-quality Wang-Landau (flat-histogram random walk) sampling driver
-in Python, designed so the same core loop carries forward to ≥2D order
-parameters and replica-exchange WL without a rewrite.
+**There is no existing Wang-Landau implementation that is simultaneously
+order-parameter agnostic and energy-backend agnostic.** Mature WL tools
+are tightly coupled to a particle-based state representation and a curated
+catalogue of potentials; plugging in a custom Hamiltonian, a non-particle
+model, or a modern framework (PyTorch, JAX, …) means subclassing in the
+host language and recompiling. `flatwalk` makes the cut at callable
+boundaries: WL bookkeeping on one side, physics on the other, joined by
+five user-supplied callables — no inheritance, no recompile, no
+host-language constraint on how `state` or the energy backend is
+structured. The architecture also carries forward additively to ≥2D
+order parameters and replica-exchange WL — see the architectural notes
+below.
 
 ## Why flatwalk
 
-Wang-Landau sampling estimates the density of states `g(Q)` of an arbitrary
-order parameter `Q` by random-walking in `Q`-space with a bias that is
-refined on a flat-histogram schedule, converging to the true density.
-
-`flatwalk` separates the **WL bookkeeping** (bins, bias, flatness check,
-f-stage schedule, 1/t transition, checkpointing, diagnostics) from the
-**physics** (what a configuration is, how to flip one, what its energy
-and order parameter are). The contract between them is small:
+Wang-Landau sampling estimates the density of states `g(Q)` of an
+arbitrary order parameter `Q` by random-walking in `Q`-space with a
+bias that is refined on a flat-histogram schedule, converging to the
+true density. The contract between `flatwalk` and your physics is
+small:
 
 | You supply | Type | What flatwalk does with it |
 | --- | --- | --- |
