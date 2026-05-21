@@ -100,6 +100,57 @@ def test_average_log_g_leaves_unvisited_at_neg_inf():
     assert np.isfinite(log_g[[0, 1, 3, 4]]).all()
 
 
+def test_snapshot_recorder_log_spaced_sampling():
+    """Recorder should retain ~n_frames snapshots spread log-spaced in t."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+    from flatwalk.diagnostics import ProgressSnapshot
+
+    rec = wl_viewer.SnapshotRecorder(n_frames=100)
+    bin_centers = np.linspace(-1, 1, 5)
+    g = np.zeros(5)
+    H = np.zeros(5, dtype=np.int64)
+    visited = np.ones(5, dtype=bool)
+    # Simulate 50_000 checks at t = 1, 2, ..., 50000
+    for t in range(1, 50001):
+        rec(ProgressSnapshot(
+            t=t, ln_f=1.0 / t, in_1overt=False, n_f_stages=0,
+            g=g, H=H, visited=visited, bin_centers=bin_centers,
+            flatness=0.5, acceptance_rate=0.5,
+        ))
+    # log-spaced sampling should give a moderate (not all 50K) frame count
+    assert 10 <= len(rec.snapshots) <= 200, len(rec.snapshots)
+    # And the early dynamics should be over-represented relative to late
+    ts = [s.t for s in rec.snapshots]
+    early = sum(1 for t in ts if t < 1000)
+    late = sum(1 for t in ts if t > 10000)
+    assert early >= late  # log spacing → more frames at small t
+
+
+def test_make_movie_renders_gif(tmp_path):
+    """make_movie should produce a valid GIF from a tiny snapshot list."""
+    import os
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    import wl_viewer
+    from flatwalk.diagnostics import ProgressSnapshot
+
+    bin_centers = np.linspace(-10, 10, 21)
+    snapshots = []
+    for k in range(5):
+        snapshots.append(ProgressSnapshot(
+            t=100 * (k + 1), ln_f=0.5 ** k, in_1overt=False, n_f_stages=k,
+            g=np.linspace(0, k + 1, 21),
+            H=np.full(21, 10 * (k + 1), dtype=np.int64),
+            visited=np.ones(21, dtype=bool),
+            bin_centers=bin_centers,
+            flatness=0.9, acceptance_rate=0.5,
+        ))
+    out = tmp_path / "movie.gif"
+    wl_viewer.make_movie(snapshots, out, bin_centers=bin_centers, fps=4)
+    assert out.exists() and out.stat().st_size > 5_000
+
+
 def test_live_viewer_runs_headless(tmp_path):
     """The viewer's callback path must work under the Agg backend (no display).
 

@@ -292,8 +292,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--viewer-out", type=Path, default=None,
                         help="save the final viewer figure to this PNG/PDF/SVG path. "
                              "Implies --viewer; works headlessly under MPLBACKEND=Agg")
+    parser.add_argument("--viewer-movie", type=Path, default=None,
+                        help="record snapshots during the WL run and render a video "
+                             "(.mp4/.mov/.webm via ffmpeg; .gif via Pillow) on completion. "
+                             "Forces --n-seeds 1")
+    parser.add_argument("--movie-frames", type=int, default=400,
+                        help="target number of frames in the movie "
+                             "(log-spaced in t; default 400)")
+    parser.add_argument("--movie-fps", type=int, default=20,
+                        help="movie playback frame rate (default 20)")
     args = parser.parse_args(argv)
-    if args.viewer_out is not None:
+    if args.viewer_out is not None or args.viewer_movie is not None:
         args.viewer = True
 
     if args.quick:
@@ -317,23 +326,31 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  → {len(g_exact)} distinct energies, "
           f"Σ n(E) = 2^{args.L*args.L} (loaded in {time.perf_counter()-t0:.1f}s)")
 
-    # Optional live viewer (single-seed only).
+    # Optional live viewer and/or movie recorder (single-seed only).
     viewer = None
+    recorder = None
     progress_callback = None
+    movie_centers = None
+    movie_log_g_exact = None
     if args.viewer:
-        from wl_viewer import LiveViewer
+        from wl_viewer import LiveViewer, SnapshotRecorder
         low, high, n_bins = ising.ising_energy_bins(args.L)
-        centers = np.arange(low + (high - low) / (2 * n_bins),
-                            high, (high - low) / n_bins)
-        # Use Beale as the reference overlay.
-        log_g_exact_arr = beale.log_g_E_array(args.L, g_exact, centers)
-        viewer = LiveViewer(
-            centers,
-            flatness_threshold=args.flatness,
-            log_g_exact=log_g_exact_arr,
-            title=f"Wang-Landau   |   L={args.L} Ising",
+        movie_centers = np.arange(
+            low + (high - low) / (2 * n_bins), high, (high - low) / n_bins
         )
-        progress_callback = viewer.callback
+        # Use Beale as the reference overlay.
+        movie_log_g_exact = beale.log_g_E_array(args.L, g_exact, movie_centers)
+        if args.viewer_movie is None:
+            viewer = LiveViewer(
+                movie_centers,
+                flatness_threshold=args.flatness,
+                log_g_exact=movie_log_g_exact,
+                title=f"Wang-Landau   |   L={args.L} Ising",
+            )
+            progress_callback = viewer.callback
+        else:
+            recorder = SnapshotRecorder(n_frames=args.movie_frames)
+            progress_callback = recorder
 
     # WL runs
     print(f"  Running Wang-Landau (n_check={args.n_check}, "
@@ -397,6 +414,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  Viewer: saved figure → {args.viewer_out}")
         print("  Viewer: close the figure window to exit.")
         viewer.keep_open()
+
+    if recorder is not None and args.viewer_movie is not None:
+        from wl_viewer import make_movie
+        print(f"  Movie: rendering {len(recorder.snapshots)} frames → "
+              f"{args.viewer_movie} ...")
+        t0 = time.perf_counter()
+        make_movie(
+            recorder.snapshots,
+            args.viewer_movie,
+            bin_centers=movie_centers,
+            flatness_threshold=args.flatness,
+            log_g_exact=movie_log_g_exact,
+            title=f"Wang-Landau   |   L={args.L} Ising",
+            fps=args.movie_fps,
+        )
+        print(f"  Movie: saved in {time.perf_counter() - t0:.1f}s → "
+              f"{args.viewer_movie}")
 
     return 0 if overall else 1
 

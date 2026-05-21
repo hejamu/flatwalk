@@ -126,7 +126,7 @@ Run the validation with the viewer:
 
 ```bash
 .venv/bin/python examples/ising_validation.py --viewer --seed 0
-# headless: save a snapshot
+# headless: save a final-frame PNG
 MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
     --viewer-out demo.png --seed 0
 ```
@@ -136,6 +136,23 @@ MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
 `--viewer` forces `--n-seeds 1` (the visualization tracks a single
 walker). The viewer rate-limits drawing to ~10 fps so the WL run pays
 only ~5% matplotlib overhead.
+
+### Video of the full run
+
+```bash
+MPLBACKEND=Agg .venv/bin/python examples/ising_validation.py \
+    --viewer-movie wl_demo.mp4 --movie-frames 500 --movie-fps 24 --seed 0
+```
+
+A `SnapshotRecorder` callback buffers snapshots on a log-spaced
+schedule in t (so the early stages — where g and H change visibly
+between checks — get many frames while the late 1/t regime is sampled
+sparsely). After the WL run completes, `make_movie` re-plays them
+through the viewer panels and renders an mp4 (via ffmpeg) or gif (via
+Pillow, automatic fallback). The committed
+[examples/wl_demo.mp4](examples/wl_demo.mp4) is a ~10 s, ~3 MB video
+of an L=8 run from `t=10³` through 1/t-regime entry to convergence at
+`ln_f = 10⁻⁸`.
 
 ### Divergences from spec, and why
 

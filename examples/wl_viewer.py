@@ -200,6 +200,14 @@ class LiveViewer:
         if now - self._last_draw_time < self._update_every_s:
             return
         self._last_draw_time = now
+        self.draw(snap)
+
+    def draw(self, snap) -> None:
+        """Force a draw with this snapshot (no rate-limit).
+
+        Movie renderers call this directly; the live callback path goes
+        through `_on_snapshot` which rate-limits.
+        """
         self._draw(snap)
 
     def _draw(self, snap) -> None:
@@ -281,3 +289,112 @@ class LiveViewer:
         # Re-issue draw on stored arrays with no snapshot-specific bits
         # (the bars/g lines were last updated in _draw, which is fine).
         self._fig.canvas.draw_idle()
+
+
+# ---------------------------------------------------------------------------
+# Recording and movie rendering
+# ---------------------------------------------------------------------------
+
+class SnapshotRecorder:
+    """`progress_callback` that buffers a sub-sampled history of snapshots.
+
+    Sampling is log-spaced in ``t`` so the early stages (where g and H
+    change visibly between checks) get many frames and the late 1/t
+    regime (where things change slowly) gets few. Aim for ~``n_frames``
+    total over a typical run.
+
+    Usage::
+
+        recorder = SnapshotRecorder(n_frames=600)
+        driver.run(..., progress_callback=recorder)
+        make_movie(recorder.snapshots, ...)
+    """
+
+    def __init__(self, n_frames: int = 600, t_min: int = 1) -> None:
+        self.n_frames = int(n_frames)
+        self.snapshots: list = []
+        # Geometric ratio so ~n_frames samples span t ∈ [1, ~10^8]:
+        # we recompute the ratio adaptively from the run's actual t range.
+        self._next_t = max(1, int(t_min))
+        self._last_t = 0
+
+    def __call__(self, snap) -> None:
+        if snap.t >= self._next_t:
+            self.snapshots.append(snap)
+            # Aim for ~n_frames over a run that may reach 10^8 trials.
+            # ratio ≈ 10^(8 / n_frames) gives even log-spacing.
+            ratio = 10.0 ** (8.0 / self.n_frames)
+            self._next_t = max(int(snap.t * ratio), snap.t + 1)
+            self._last_t = snap.t
+
+
+def make_movie(
+    snapshots,
+    output_path,
+    *,
+    bin_centers,
+    flatness_threshold: float = 0.95,
+    log_g_exact=None,
+    title: str = "Wang-Landau",
+    fps: int = 20,
+    dpi: int = 110,
+) -> None:
+    """Render a recorded list of `ProgressSnapshot` as an mp4 (or gif).
+
+    Output format is chosen from ``output_path`` extension. ``.mp4``,
+    ``.mov``, ``.webm`` use ffmpeg (must be on PATH); ``.gif`` uses
+    Pillow (always available).
+
+    Each frame draws the full viewer state at that snapshot — log g(E),
+    H(E), and the running ln_f / flatness time series. Time-series
+    progress builds up naturally as frames advance.
+    """
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    # Force a non-interactive backend; rendering is offline.
+    matplotlib.use("Agg", force=True)
+    import matplotlib.animation as animation  # noqa: E402
+
+    output_path = Path(output_path)
+    ext = output_path.suffix.lower()
+    if not snapshots:
+        raise ValueError("snapshots list is empty")
+
+    viewer = LiveViewer(
+        bin_centers,
+        flatness_threshold=flatness_threshold,
+        log_g_exact=log_g_exact,
+        update_every_s=0.0,
+        title=title,
+    )
+
+    def animate(idx):
+        viewer._on_snapshot(snapshots[idx])
+        return ()
+
+    ani = animation.FuncAnimation(
+        viewer._fig,
+        animate,
+        frames=len(snapshots),
+        interval=int(1000 / fps),
+        blit=False,
+        repeat=False,
+    )
+
+    if ext == ".gif":
+        writer = animation.PillowWriter(fps=fps)
+    elif ext in (".mp4", ".mov", ".m4v", ".webm"):
+        writer = animation.FFMpegWriter(fps=fps, bitrate=2500)
+    else:
+        raise ValueError(
+            f"unsupported video extension {ext!r}; use .mp4, .mov, .webm, or .gif"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ani.save(str(output_path), writer=writer, dpi=dpi)
+    # Close the figure to free resources.
+    import matplotlib.pyplot as plt
+    plt.close(viewer._fig)
