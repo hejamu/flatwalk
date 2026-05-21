@@ -10,8 +10,9 @@ boundaries: WL bookkeeping on one side, physics on the other, joined by
 five user-supplied callables — no inheritance, no recompile, no
 host-language constraint on how `state` or the energy backend is
 structured. The architecture also carries forward additively to ≥2D
-order parameters and replica-exchange WL — see the architectural notes
-below.
+order parameters and replica-exchange WL — see
+[docs/storyline.md](docs/storyline.md) for the full design rationale
+and the batched-walkers roadmap.
 
 ## Why flatwalk
 
