@@ -68,8 +68,7 @@ REWL, ≥2D OP) *additive* rather than rewrites.
 | `WLDriver.run(…)` | The main loop with 1/t-WL transition, checkpointing, periodic diagnostics | The trial logic is factored into `_trial_step(walker, …)`. A batched variant `_trial_step_batched(walker_batch, …)` is additive; the existing scalar path stays. |
 | `Walker` | Per-replica state container (state, bin_current, energy, RNG, counters) | Already separated from the driver. A `WalkerBatch` is its N-walker generalisation. |
 | `ExchangeHandler` ABC + call site | Empty hook fired every `n_exchange` trials | REWL drops in as a concrete handler — no change to the loop. |
-| `ProgressSnapshot` + per-check callback | Diagnostics every `n_check` trials | Works for any system; the live viewer, the snapshot recorder, and the movie renderer all consume it. |
-| `trial_callback(t, walker, ln_f, accepted)` | Per-trial callback (zero cost when `None`) | The walker is exposed by reference; user code can extract `state` (e.g. an Ising spin grid) for visualisation or recording. |
+| `TraceWriter` / `TraceRow` | Per-check TSV diagnostic writer | Used by `WLConfig.trace_path`; offline analysis with grep / awk / pandas without re-running. |
 | Beale exact validation | Modular-CRT transfer-matrix recursion for `n(E)` on the 2D Ising torus, cross-validated against brute-force enumeration on L≤4 | A sharp correctness test for the driver. Same machinery will validate the batched path against the scalar path bit-for-bit on small systems. |
 
 Code is ~2k lines of pure Python, 80 tests, CI on three Python

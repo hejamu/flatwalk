@@ -18,8 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
-import numpy as np
-
 
 @dataclass
 class TraceRow:
@@ -115,36 +113,6 @@ class TraceWriter:
     @property
     def enabled(self) -> bool:
         return self._path is not None
-
-
-# ---------------------------------------------------------------------------
-# Progress snapshot — passed to `WLDriver.run(..., progress_callback=...)`
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ProgressSnapshot:
-    """Live state of the WL run at one periodic check.
-
-    Fired once per ``n_check`` trials (after any f-stage halving for that
-    check, before counter reset), so the H array shown is the
-    *post-transition* histogram and ``flatness`` is the pre-transition
-    flatness value used to decide the halve.
-
-    Arrays are owned copies — callers can retain or post-process them
-    without worrying about the driver mutating them on the next iteration.
-    """
-
-    t: int
-    ln_f: float
-    in_1overt: bool
-    n_f_stages: int
-    g: np.ndarray
-    H: np.ndarray
-    visited: np.ndarray
-    bin_centers: np.ndarray  # immutable reference; bin_scheme owns it
-    flatness: float
-    acceptance_rate: float
 
 
 def read_trace(path: os.PathLike | str) -> list[TraceRow]:
