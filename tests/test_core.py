@@ -401,6 +401,33 @@ class TestRun:
         for k, snap in enumerate(snapshots):
             assert snap.t == (k + 1) * 100
 
+    def test_trial_callback_fires_every_trial(self):
+        """`trial_callback` must fire exactly once per trial in order."""
+        sys = _tiny_system(5)
+        cfg = WLConfig(bin_scheme=sys["scheme"], n_check=1000, ln_f_final=1e-30)
+        events = []
+
+        def cb(t, bin_current, energy, ln_f, accepted):
+            events.append((t, bin_current, accepted))
+
+        result = WLDriver(cfg).run(
+            initial_state=sys["initial_state"],
+            energy_fn=sys["energy_fn"],
+            order_parameter_fn=sys["order_parameter_fn"],
+            propose_move_fn=sys["propose_move_fn"],
+            rng=np.random.default_rng(0),
+            max_trials=250,
+            trial_callback=cb,
+        )
+        assert len(events) == 250
+        assert result.t_total == 250
+        # t values are 1, 2, 3, ..., 250 (monotonically increasing)
+        ts = [e[0] for e in events]
+        assert ts == list(range(1, 251))
+        # bin values are valid indices
+        for _, bin_current, _ in events:
+            assert 0 <= bin_current < sys["scheme"].n_bins
+
     def test_progress_callback_unused_when_none(self):
         """If `progress_callback=None` the run should not pay any cost."""
         sys = _tiny_system(5)

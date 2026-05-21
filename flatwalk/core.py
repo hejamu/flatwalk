@@ -39,6 +39,11 @@ EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], Union[float, np.ndarray]]
 ProposeMoveFn = Callable[[Any, np.random.Generator], Tuple[Any, float]]
 ProgressCallback = Callable[[ProgressSnapshot], None]
+# Per-trial hook. Called after every accepted/rejected trial, with the trial
+# number, post-trial bin, post-trial energy, current ln_f, and accepted flag.
+# Kept as a 5-arg callable (rather than a dataclass) so the per-trial cost
+# stays minimal — relevant for long runs where this fires 10⁸ times.
+TrialCallback = Callable[[int, int, float, float, bool], None]
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +234,7 @@ class WLDriver:
         exchange_handler: Optional[ExchangeHandler] = None,
         resume_from: Optional[Path] = None,
         progress_callback: Optional[ProgressCallback] = None,
+        trial_callback: Optional[TrialCallback] = None,
     ) -> WLResult:
         """Run a Wang-Landau simulation. Returns the final ``WLResult``.
 
@@ -313,11 +319,15 @@ class WLDriver:
                         break
 
                     # ---- one trial ----
-                    self._trial_step(
+                    accepted = self._trial_step(
                         walker, g, H, visited, ln_f,
                         energy_fn, order_parameter_fn, propose_move_fn, cfg.beta,
                     )
                     t += 1
+                    if trial_callback is not None:
+                        trial_callback(
+                            t, walker.bin_current, walker.energy, ln_f, accepted,
+                        )
 
                     # ---- 1/t regime: continuously update ln_f ----
                     if in_1overt:
