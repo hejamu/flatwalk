@@ -35,8 +35,27 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx_autodoc_typehints",
+    "sphinx_gallery.gen_gallery",
     "myst_parser",
 ]
+
+
+# -- Sphinx Gallery ---------------------------------------------------------
+
+sphinx_gallery_conf = {
+    # Sources: runnable examples live in docs/examples/ at the repo root
+    # (next to docs/src/, separate from the project's examples/ directory
+    # which holds the CLI scripts).
+    "examples_dirs": str(ROOT / "docs" / "examples"),
+    "gallery_dirs": "auto_examples",  # written below docs/src/
+    "filename_pattern": r"plot_",
+    "remove_config_comments": True,
+    "doc_module": ("flatwalk",),
+    "reference_url": {"flatwalk": None},
+    "default_thumb_file": None,
+    "abort_on_example_error": True,
+    "min_reported_time": 1,
+}
 
 source_suffix = {
     ".rst": "restructuredtext",

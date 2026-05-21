@@ -21,6 +21,9 @@ docs = [
     "furo",
     "myst-parser",
     "sphinx-autodoc-typehints",
+    "sphinx-gallery",
+    "matplotlib",
+    "pillow",
 ]
 lint = [
     "ruff",

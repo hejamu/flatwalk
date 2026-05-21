@@ -9,6 +9,8 @@ dist/
 venv/
 .coverage
 docs/build/
+docs/src/auto_examples/
+docs/src/sg_execution_times.rst
 *.npz
 *.tsv
 !examples/cache/*.tsv

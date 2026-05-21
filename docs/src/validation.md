@@ -6,6 +6,9 @@ the recovered density of states against the exact ``n(E)`` computed
 from a Beale-style transfer-matrix recursion. The pass criteria match
 the project specification §4.4.
 
+For runnable smoke versions of the validation that execute on every
+docs build, see the [validation gallery](auto_examples/index.rst).
+
 This page walks through the example end-to-end:
 
 - §[The exact reference](#the-exact-reference-beales-recursion):
