@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
@@ -33,7 +32,7 @@ class ExchangeResult:
 
     swapped: bool
     new_bin: int
-    g_delta: Optional[np.ndarray] = None
+    g_delta: np.ndarray | None = None
 
 
 class ExchangeHandler(ABC):
@@ -49,7 +48,7 @@ class ExchangeHandler(ABC):
         self,
         walker: Walker,
         g: np.ndarray,
-    ) -> Optional[ExchangeResult]:
+    ) -> ExchangeResult | None:
         """Attempt an exchange. Return ``None`` for no-op.
 
         Implementations may mutate ``walker.state`` and ``walker.bin_current``

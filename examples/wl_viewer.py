@@ -30,7 +30,6 @@ the WL run doesn't pay matplotlib overhead on every check.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import numpy as np
 
@@ -46,7 +45,7 @@ class LiveViewer:
         bin_centers: np.ndarray,
         *,
         flatness_threshold: float = 0.95,
-        log_g_exact: Optional[np.ndarray] = None,
+        log_g_exact: np.ndarray | None = None,
         update_every_s: float = 0.1,
         title: str = "Wang-Landau live",
     ) -> None:
@@ -57,7 +56,11 @@ class LiveViewer:
 
         self._bin_centers = np.asarray(bin_centers, dtype=np.float64)
         # Bar width: use the median bin spacing.
-        bin_width = float(np.median(np.diff(self._bin_centers))) if len(self._bin_centers) > 1 else 1.0
+        bin_width = (
+            float(np.median(np.diff(self._bin_centers)))
+            if len(self._bin_centers) > 1
+            else 1.0
+        )
         self._bin_width = 0.9 * bin_width
         self._flatness_threshold = flatness_threshold
         self._update_every_s = update_every_s
@@ -68,7 +71,7 @@ class LiveViewer:
         self._lnf_hist: list[float] = []
         self._flat_hist: list[float] = []
         self._stage_transitions: list[tuple[int, int]] = []  # (t, new_stage)
-        self._one_over_t_t: Optional[int] = None
+        self._one_over_t_t: int | None = None
         self._last_n_f_stages = 0
         self._last_draw_time = 0.0
 
@@ -79,14 +82,20 @@ class LiveViewer:
 
         # Figure + axes
         self._fig, axes = plt.subplots(
-            3, 1, figsize=(11, 9),
+            3,
+            1,
+            figsize=(11, 9),
             gridspec_kw={"height_ratios": [3, 2, 2]},
         )
         self._ax_g, self._ax_H, self._ax_t = axes
 
         # Panel 1: log g(E)
         (self._line_g,) = self._ax_g.plot(
-            [], [], color="C0", lw=2.0, label="WL log g (shifted)",
+            [],
+            [],
+            color="C0",
+            lw=2.0,
+            label="WL log g (shifted)",
         )
         if self._log_g_exact is not None:
             finite = np.isfinite(self._log_g_exact)
@@ -94,8 +103,13 @@ class LiveViewer:
             if finite.any():
                 ref[finite] -= ref[finite].min()
             (self._line_g_ref,) = self._ax_g.plot(
-                self._bin_centers[finite], ref[finite],
-                color="k", lw=1.0, ls="--", alpha=0.6, label="reference (exact)",
+                self._bin_centers[finite],
+                ref[finite],
+                color="k",
+                lw=1.0,
+                ls="--",
+                alpha=0.6,
+                label="reference (exact)",
             )
         else:
             self._line_g_ref = None
@@ -105,11 +119,17 @@ class LiveViewer:
 
         # Panel 2: H(E)
         self._bars_H = self._ax_H.bar(
-            self._bin_centers, np.zeros_like(self._bin_centers),
-            width=self._bin_width, color="C2", alpha=0.85,
+            self._bin_centers,
+            np.zeros_like(self._bin_centers),
+            width=self._bin_width,
+            color="C2",
+            alpha=0.85,
         )
         self._line_H_threshold = self._ax_H.axhline(
-            0.0, color="C3", ls="--", alpha=0.7,
+            0.0,
+            color="C3",
+            ls="--",
+            alpha=0.7,
             label=f"{flatness_threshold:.2f}·mean(H)",
         )
         self._ax_H.set_ylabel("H (current stage)")
@@ -118,11 +138,21 @@ class LiveViewer:
 
         # Panel 3: ln_f + flatness over time
         (self._line_lnf,) = self._ax_t.plot(
-            [], [], color="C0", lw=1.5, label="ln_f",
+            [],
+            [],
+            color="C0",
+            lw=1.5,
+            label="ln_f",
         )
         # 1/t reference (dashed): drawn once we have data
         (self._line_oneovert,) = self._ax_t.plot(
-            [], [], color="k", lw=1.0, ls="--", alpha=0.5, label="1/t",
+            [],
+            [],
+            color="k",
+            lw=1.0,
+            ls="--",
+            alpha=0.5,
+            label="1/t",
         )
         self._ax_t.set_yscale("log")
         self._ax_t.set_xscale("log")
@@ -138,10 +168,18 @@ class LiveViewer:
 
         self._ax_flat = self._ax_t.twinx()
         (self._line_flat,) = self._ax_flat.plot(
-            [], [], color="C1", lw=1.2, alpha=0.8, label="flatness",
+            [],
+            [],
+            color="C1",
+            lw=1.2,
+            alpha=0.8,
+            label="flatness",
         )
         self._ax_flat.axhline(
-            flatness_threshold, color="C3", ls=":", alpha=0.5,
+            flatness_threshold,
+            color="C3",
+            ls=":",
+            alpha=0.5,
         )
         self._ax_flat.set_ylim(0.0, 1.05)
         self._ax_flat.set_ylabel("flatness", color="C1")
@@ -260,12 +298,23 @@ class LiveViewer:
         if self._stage_transitions:
             xs = [t for t, _ in self._stage_transitions]
             self._ax_t.vlines(
-                xs, 1e-30, 1e30, color="gray", lw=0.5, alpha=0.4, zorder=-1,
+                xs,
+                1e-30,
+                1e30,
+                color="gray",
+                lw=0.5,
+                alpha=0.4,
+                zorder=-1,
             )
         if self._one_over_t_t is not None:
             self._ax_t.vlines(
-                [self._one_over_t_t], 1e-30, 1e30,
-                color="C3", lw=1.0, alpha=0.7, zorder=-1,
+                [self._one_over_t_t],
+                1e-30,
+                1e30,
+                color="C3",
+                lw=1.0,
+                alpha=0.7,
+                zorder=-1,
             )
 
         # ---- title ----
@@ -294,6 +343,7 @@ class LiveViewer:
 # ---------------------------------------------------------------------------
 # Recording and movie rendering
 # ---------------------------------------------------------------------------
+
 
 class SnapshotRecorder:
     """`progress_callback` that buffers a sub-sampled history of snapshots.
@@ -345,9 +395,9 @@ class TrialRecorder:
 
     def __init__(
         self,
-        max_records: Optional[int] = None,
+        max_records: int | None = None,
         state_capturer=None,
-        capture_at: Optional[set] = None,
+        capture_at: set | None = None,
     ) -> None:
         """
         Parameters
@@ -441,10 +491,10 @@ def make_trajectory_movie(
     log_g_exact=None,
     title: str = "Wang-Landau trajectory",
     fps: int = 30,
-    n_frames: Optional[int] = None,
-    frame_schedule: Optional[list] = None,
+    n_frames: int | None = None,
+    frame_schedule: list | None = None,
     flatness_threshold: float = 0.8,
-    spin_grids: Optional[dict] = None,
+    spin_grids: dict | None = None,
     dpi: int = 110,
 ) -> None:
     """Per-trial animation: walker hopping between bins, with H and ``g`` building up.
@@ -503,7 +553,6 @@ def make_trajectory_movie(
     bin_arr = history["bin"]
     energy_arr = history["energy"]
     ln_f_arr = history["ln_f"]
-    accepted_arr = history["accepted"]
     n_recorded = len(t_arr)
     if n_recorded == 0:
         raise ValueError("history is empty")
@@ -511,9 +560,7 @@ def make_trajectory_movie(
     # ---- stage label per trial: every ln_f drop = new f-stage ----
     if n_recorded > 1:
         halve_mask = np.diff(ln_f_arr) < -1e-30
-        stage_at_trial = np.concatenate(
-            ([0], np.cumsum(halve_mask).astype(np.int64))
-        )
+        stage_at_trial = np.concatenate(([0], np.cumsum(halve_mask).astype(np.int64)))
     else:
         stage_at_trial = np.zeros(1, dtype=np.int64)
     n_stages = int(stage_at_trial[-1]) + 1
@@ -567,7 +614,7 @@ def make_trajectory_movie(
             cur_stage_H_at_frame[next_frame] = cur_stage_H
             visited_at_frame[next_frame] = v_run
             stage_at_frame[next_frame] = s
-            halve_at_frame[next_frame] = (s > prev_stage_for_frame)
+            halve_at_frame[next_frame] = s > prev_stage_for_frame
             prev_stage_for_frame = s
             # Flatness of current per-stage H over visited bins.
             mask = v_run
@@ -599,10 +646,12 @@ def make_trajectory_movie(
         # stage colorbar in the right column.
         fig = plt.figure(figsize=(13, 8.5))
         gs = fig.add_gridspec(
-            3, 2,
+            3,
+            2,
             width_ratios=[3, 1],
             height_ratios=[3, 3, 2],
-            hspace=0.32, wspace=0.08,
+            hspace=0.32,
+            wspace=0.08,
         )
         ax_g = fig.add_subplot(gs[0, 0])
         ax_H = fig.add_subplot(gs[1, 0])
@@ -616,7 +665,10 @@ def make_trajectory_movie(
         # below the histogram panel.
         fig = plt.figure(figsize=(11, 9))
         gs = fig.add_gridspec(
-            4, 1, height_ratios=[3, 3, 0.18, 2], hspace=0.3,
+            4,
+            1,
+            height_ratios=[3, 3, 0.18, 2],
+            hspace=0.3,
         )
         ax_g = fig.add_subplot(gs[0])
         ax_H = fig.add_subplot(gs[1])
@@ -633,8 +685,13 @@ def make_trajectory_movie(
         if finite.any():
             ref[finite] -= ref[finite].min()
         ax_g.plot(
-            bin_centers[finite], ref[finite],
-            color="k", ls="--", lw=1.0, alpha=0.6, label="reference (exact)",
+            bin_centers[finite],
+            ref[finite],
+            color="k",
+            ls="--",
+            lw=1.0,
+            alpha=0.6,
+            label="reference (exact)",
         )
     ax_g.set_ylabel("log g(E)  (shifted)")
     ax_g.grid(alpha=0.3)
@@ -645,14 +702,22 @@ def make_trajectory_movie(
     bars_per_stage = []
     for k in range(n_stages):
         bars = ax_H.bar(
-            bin_centers, np.zeros(n_bins),
-            width=bar_w, color=stage_colors[k], alpha=0.92,
-            edgecolor="white", linewidth=0.0, label=f"stage {k}",
+            bin_centers,
+            np.zeros(n_bins),
+            width=bar_w,
+            color=stage_colors[k],
+            alpha=0.92,
+            edgecolor="white",
+            linewidth=0.0,
+            label=f"stage {k}",
         )
         bars_per_stage.append(bars)
     current_line = ax_H.axvline(
         bin_centers[bin_arr[int(frame_indices[0])]],
-        color="red", lw=2.5, alpha=0.85, zorder=10,
+        color="red",
+        lw=2.5,
+        alpha=0.85,
+        zorder=10,
     )
     ax_H.set_ylabel("H(E)  (cumulative)")
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
@@ -673,8 +738,14 @@ def make_trajectory_movie(
     # checks against ``flatness_threshold``).
     ax_H_right = ax_H.twinx()
     (line_cur_stage,) = ax_H_right.plot(
-        [], [], color="darkorange", lw=2.4, marker="o", markersize=3.5,
-        alpha=0.95, label="current-stage H",
+        [],
+        [],
+        color="darkorange",
+        lw=2.4,
+        marker="o",
+        markersize=3.5,
+        alpha=0.95,
+        label="current-stage H",
     )
     max_cur_H = int(cur_stage_H_at_frame.max()) if cur_stage_H_at_frame.size > 0 else 1
     ax_H_right.set_ylim(0, max(1, int(max_cur_H * 1.15)))
@@ -691,18 +762,24 @@ def make_trajectory_movie(
 
     # ---- right column: spin configuration ----
     spin_img = None
-    spin_keys_sorted: Optional[np.ndarray] = None
+    spin_keys_sorted: np.ndarray | None = None
     if has_spins:
         # Build a sorted array of trial-number keys for fast searchsorted lookup.
         spin_keys_sorted = np.array(sorted(spin_grids.keys()), dtype=np.int64)
         first_spins = np.asarray(spin_grids[int(spin_keys_sorted[0])])
         spin_img = ax_spin.imshow(
-            first_spins, cmap="RdBu_r", vmin=-1.4, vmax=1.4,
-            interpolation="nearest", aspect="equal",
+            first_spins,
+            cmap="RdBu_r",
+            vmin=-1.4,
+            vmax=1.4,
+            interpolation="nearest",
+            aspect="equal",
         )
         ax_spin.set_xticks([])
         ax_spin.set_yticks([])
-        ax_spin.set_title(f"spin configuration   ({first_spins.shape[0]}×{first_spins.shape[1]})")
+        ax_spin.set_title(
+            f"spin configuration   ({first_spins.shape[0]}×{first_spins.shape[1]})"
+        )
 
     # Don't call tight_layout: it tends to drift the colorbar off-axis under
     # FuncAnimation. We've already laid out via gridspec.
@@ -754,11 +831,12 @@ def make_trajectory_movie(
                 key = int(spin_keys_sorted[pos])
                 spin_img.set_data(np.asarray(spin_grids[key]))
 
-        halve_tag = f"  ← halve to stage {int(stage_at_frame[i])}" if halve_at_frame[i] else ""
+        halve_tag = (
+            f"  ← halve to stage {int(stage_at_frame[i])}" if halve_at_frame[i] else ""
+        )
         flat = float(flatness_at_frame[i])
         flat_tag = (
-            f"flatness {flat:.3f} / {flatness_threshold:.2f}"
-            if flat > 0 else "flatness —"
+            f"flatness {flat:.3f} / {flatness_threshold:.2f}" if flat > 0 else "flatness —"
         )
         fig.suptitle(
             f"{title}    trial {int(t_arr[idx]):,}    "
@@ -772,8 +850,12 @@ def make_trajectory_movie(
         return ()
 
     ani = animation.FuncAnimation(
-        fig, animate, frames=len(frame_indices),
-        interval=int(1000 / fps), blit=False, repeat=False,
+        fig,
+        animate,
+        frames=len(frame_indices),
+        interval=int(1000 / fps),
+        blit=False,
+        repeat=False,
     )
 
     ext = output_path.suffix.lower()
@@ -812,7 +894,6 @@ def make_movie(
     H(E), and the running ln_f / flatness time series. Time-series
     progress builds up naturally as frames advance.
     """
-    import os
     from pathlib import Path
 
     import matplotlib
@@ -860,4 +941,5 @@ def make_movie(
     ani.save(str(output_path), writer=writer, dpi=dpi)
     # Close the figure to free resources.
     import matplotlib.pyplot as plt
+
     plt.close(viewer._fig)

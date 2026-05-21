@@ -12,11 +12,10 @@ implementing the same ABC.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Union
 
 import numpy as np
 
-QValue = Union[float, int, np.floating, np.integer, np.ndarray]
+QValue = float | int | np.floating | np.integer | np.ndarray
 
 
 class BinScheme(ABC):
@@ -27,7 +26,7 @@ class BinScheme(ABC):
         """Return the flat bin index for ``q``. Raises ``IndexError`` if out of range."""
 
     @abstractmethod
-    def index_to_center(self, idx: int) -> Union[float, np.ndarray]:
+    def index_to_center(self, idx: int) -> float | np.ndarray:
         """Return the bin center for flat index ``idx``."""
 
     @abstractmethod
@@ -59,9 +58,7 @@ def _to_scalar(q: QValue) -> float:
     """Coerce a scalar-like input to ``float``. Rejects multi-element arrays."""
     if isinstance(q, np.ndarray):
         if q.size != 1:
-            raise ValueError(
-                f"Bin1D received array of size {q.size}; expected a scalar."
-            )
+            raise ValueError(f"Bin1D received array of size {q.size}; expected a scalar.")
         return float(q.reshape(()).item())
     return float(q)
 

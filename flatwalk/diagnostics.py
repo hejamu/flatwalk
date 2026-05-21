@@ -13,9 +13,10 @@ backend slots in without changing callers.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, asdict, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Iterable, Optional, Sequence
+from typing import IO
 
 import numpy as np
 
@@ -69,14 +70,14 @@ class TraceRow:
 class TraceWriter:
     """Append-only writer for `TraceRow`. TSV backend."""
 
-    def __init__(self, path: Optional[os.PathLike | str], flush_every: int = 1):
+    def __init__(self, path: os.PathLike | str | None, flush_every: int = 1):
         self._path = Path(path) if path is not None else None
-        self._fh: Optional[IO[str]] = None
+        self._fh: IO[str] | None = None
         self._flush_every = max(1, int(flush_every))
         self._rows_since_flush = 0
-        self._opened_at_size: Optional[int] = None
+        self._opened_at_size: int | None = None
 
-    def __enter__(self) -> "TraceWriter":
+    def __enter__(self) -> TraceWriter:
         if self._path is None:
             return self
         existed = self._path.exists() and self._path.stat().st_size > 0
@@ -108,7 +109,7 @@ class TraceWriter:
             self.write(row)
 
     @property
-    def path(self) -> Optional[Path]:
+    def path(self) -> Path | None:
         return self._path
 
     @property
@@ -119,6 +120,7 @@ class TraceWriter:
 # ---------------------------------------------------------------------------
 # Progress snapshot — passed to `WLDriver.run(..., progress_callback=...)`
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ProgressSnapshot:
@@ -148,7 +150,7 @@ class ProgressSnapshot:
 def read_trace(path: os.PathLike | str) -> list[TraceRow]:
     """Read a TSV trace back into `TraceRow` objects. Test/diagnostic helper."""
     rows: list[TraceRow] = []
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         header = fh.readline().rstrip("\n").split("\t")
         expected = list(TraceRow.fieldnames())
         if header != expected:

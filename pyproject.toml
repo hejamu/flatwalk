@@ -15,7 +15,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "scipy>=1.10"]
+test = ["pytest>=7", "scipy>=1.10", "matplotlib>=3.7"]
+docs = [
+    "sphinx>=7",
+    "furo",
+    "myst-parser",
+    "sphinx-autodoc-typehints",
+]
+lint = [
+    "ruff",
+    "sphinx-lint",
+]
 
 [tool.setuptools.packages.find]
 include = ["flatwalk*"]
@@ -23,3 +33,25 @@ include = ["flatwalk*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+line-length = 92
+target-version = "py310"
+
+[tool.ruff.lint]
+# Default rule set (pyflakes + pycodestyle errors) plus a few imports/style:
+#   I  — isort
+#   UP — pyupgrade
+#   B  — flake8-bugbear
+#   SIM — flake8-simplify
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",  # line-too-long: handled by formatter
+    "B028",  # warnings.warn without stacklevel — too noisy for examples
+    "SIM102",  # nested `if`s with explanatory comments read better than `and`
+    "SIM105",  # `try/except: pass` is clearer than `contextlib.suppress` here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B"]  # bugbear's loop-variable rules clash with parametrised tests
+"examples/*" = ["B"]

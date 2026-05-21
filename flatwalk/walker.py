@@ -10,7 +10,7 @@ A single-walker WL run still uses exactly one ``Walker``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -43,7 +43,7 @@ class Walker:
     state: Any
     bin_current: int = -1
     energy: float = np.nan
-    rng: Optional[np.random.Generator] = None
+    rng: np.random.Generator | None = None
     n_accepted: int = 0
     n_attempted: int = 0
     extra: dict = field(default_factory=dict)

@@ -14,8 +14,8 @@ import pytest
 
 from flatwalk.binning import Bin1D, BinScheme
 
-
 # ---- construction validation ---------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "low, high, n_bins",
@@ -40,6 +40,7 @@ def test_construction_minimal_valid():
 
 
 # ---- edges and centers --------------------------------------------------------
+
 
 def test_edges_and_centers_shapes_and_endpoints():
     b = Bin1D(-2.0, 3.0, 5)
@@ -66,6 +67,7 @@ def test_ising_l8_geometry():
 
 # ---- value_to_index ------------------------------------------------------------
 
+
 def test_value_to_index_basic():
     b = Bin1D(0.0, 10.0, 5)  # width 2: bins [0,2), [2,4), [4,6), [6,8), [8,10]
     assert b.value_to_index(0.0) == 0
@@ -90,10 +92,10 @@ def test_value_to_index_scalar_array_inputs():
     b = Bin1D(0.0, 4.0, 4)
     assert b.value_to_index(1.5) == 1
     assert b.value_to_index(np.float64(1.5)) == 1
-    assert b.value_to_index(np.array(1.5)) == 1            # 0-d ndarray
-    assert b.value_to_index(np.array([1.5])) == 1          # 1-element 1-d
+    assert b.value_to_index(np.array(1.5)) == 1  # 0-d ndarray
+    assert b.value_to_index(np.array([1.5])) == 1  # 1-element 1-d
     with pytest.raises(ValueError):
-        b.value_to_index(np.array([1.5, 2.5]))             # multi-element rejected
+        b.value_to_index(np.array([1.5, 2.5]))  # multi-element rejected
 
 
 def test_value_to_index_out_of_range_raises():
@@ -105,6 +107,7 @@ def test_value_to_index_out_of_range_raises():
 
 
 # ---- in_range ------------------------------------------------------------------
+
 
 def test_in_range_inclusive_both_endpoints():
     b = Bin1D(0.0, 1.0, 10)
@@ -126,6 +129,7 @@ def test_in_range_matches_value_to_index_safety():
 
 # ---- index_to_center -----------------------------------------------------------
 
+
 def test_index_to_center_bounds():
     b = Bin1D(0.0, 1.0, 4)
     with pytest.raises(IndexError):
@@ -137,6 +141,7 @@ def test_index_to_center_bounds():
 
 
 # ---- ABC contract --------------------------------------------------------------
+
 
 def test_bin1d_is_a_bin_scheme():
     b = Bin1D(0.0, 1.0, 4)

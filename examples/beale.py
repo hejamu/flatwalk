@@ -28,14 +28,14 @@ Public API
 from __future__ import annotations
 
 import math
-from typing import Iterable
+from collections.abc import Iterable
 
 import numpy as np
-
 
 # ---------------------------------------------------------------------------
 # Small-prime helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_prime(n: int) -> bool:
     if n < 2:
@@ -80,6 +80,7 @@ def _crt(remainders: Iterable[int], moduli: Iterable[int]) -> int:
 # Transfer-matrix construction
 # ---------------------------------------------------------------------------
 
+
 def _build_T_exponent(L: int) -> np.ndarray:
     """Return ``T_exp`` (shape ``(2^L, 2^L)``) of integers in ``[-2L, 2L]``.
 
@@ -117,6 +118,7 @@ def _build_T_poly(L: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Polynomial matrix arithmetic
 # ---------------------------------------------------------------------------
+
 
 def _matmul_poly_mod(A: np.ndarray, B: np.ndarray, mod: int) -> np.ndarray:
     """Polynomial matrix multiply ``A @ B`` modulo ``mod``, float64.
@@ -162,6 +164,7 @@ def _trace_poly(T: np.ndarray) -> np.ndarray:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def beale_g_E(L: int, primes: list[int] | None = None) -> dict[int, int]:
     """Exact density of states for the 2D Ising model on an L×L torus.
 
@@ -177,7 +180,6 @@ def beale_g_E(L: int, primes: list[int] | None = None) -> dict[int, int]:
         # product ≈ 2^72, comfortably above 2^64 needed for unique reconstruction.
         primes = _primes_below(1 << 18, 4)
 
-    N = 1 << L
     T_init = _build_T_poly(L)
     poly_len_final = L * (4 * L + 1 - 1) + 1  # L·(4L) + 1 = 4L²+1
     shift_final = L * (2 * L)  # L·2L = 2L²
@@ -207,7 +209,7 @@ def beale_g_E(L: int, primes: list[int] | None = None) -> dict[int, int]:
     expected_total = 1 << (L * L)
     if total != expected_total:
         raise RuntimeError(
-            f"Beale recursion sanity failed: Σ n(E) = {total}, expected 2^{L*L} = {expected_total}"
+            f"Beale recursion sanity failed: Σ n(E) = {total}, expected 2^{L * L} = {expected_total}"
         )
 
     return n_E
@@ -217,7 +219,7 @@ def brute_force_g_E(L: int) -> dict[int, int]:
     """Direct enumeration of all 2^(L²) configurations. Practical for L ≤ 4."""
     if L * L > 24:
         raise ValueError(
-            f"brute_force_g_E is impractical for L={L} (would enumerate 2^{L*L} configs)"
+            f"brute_force_g_E is impractical for L={L} (would enumerate 2^{L * L} configs)"
         )
     n_E: dict[int, int] = {}
     n_spins = L * L

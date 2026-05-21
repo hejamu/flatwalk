@@ -24,7 +24,9 @@ def test_ground_state_energy(L=4):
 def test_antiferromagnetic_energy_even_L():
     """Checkerboard on even L has E = +2 J L² (every bond unsatisfied)."""
     L = 4
-    spins = np.where(((np.arange(L)[:, None] + np.arange(L)[None, :]) % 2) == 0, 1, -1).astype(np.int8)
+    spins = np.where(
+        ((np.arange(L)[:, None] + np.arange(L)[None, :]) % 2) == 0, 1, -1
+    ).astype(np.int8)
     assert ising.total_energy(spins) == +2 * L * L
 
 

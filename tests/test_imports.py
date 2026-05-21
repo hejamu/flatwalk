@@ -25,8 +25,9 @@ def test_public_symbols_importable():
 
 
 def test_wlconfig_validation():
-    from flatwalk import Bin1D, WLConfig
     import pytest
+
+    from flatwalk import Bin1D, WLConfig
 
     scheme = Bin1D(0.0, 1.0, 10)
     # valid

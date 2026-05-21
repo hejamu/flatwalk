@@ -18,7 +18,6 @@ from typing import Any
 
 import numpy as np
 
-
 _SCALAR_KEYS = (
     "n_bins",
     "t_total",
