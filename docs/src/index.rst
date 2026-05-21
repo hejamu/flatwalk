@@ -13,6 +13,12 @@ flatwalk does the sampling, the user provides the system to sample.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Validation
+
+   validation
+
+.. toctree::
+   :maxdepth: 2
    :caption: Design and roadmap
 
    storyline
