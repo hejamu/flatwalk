@@ -11,6 +11,13 @@ from .core import (
 )
 from .diagnostics import TraceRow, TraceWriter, read_trace
 from .exchange import ExchangeHandler, ExchangeResult
+from .rewl import (
+    ReplicaExchangeHandler,
+    RewlDriver,
+    RewlResult,
+    join_g,
+    make_windows,
+)
 from .walker import Walker, WalkerBatch
 
 __all__ = [
@@ -21,6 +28,9 @@ __all__ = [
     "BinScheme",
     "ExchangeHandler",
     "ExchangeResult",
+    "ReplicaExchangeHandler",
+    "RewlDriver",
+    "RewlResult",
     "TraceRow",
     "TraceWriter",
     "Walker",
@@ -28,6 +38,8 @@ __all__ = [
     "WLConfig",
     "WLDriver",
     "WLResult",
+    "join_g",
+    "make_windows",
     "read_trace",
 ]
 

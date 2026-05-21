@@ -52,9 +52,17 @@ Checkpoint I/O
    :show-inheritance:
 
 
-Replica exchange (hook only)
-----------------------------
+Replica exchange (scalar hook)
+------------------------------
 
 .. automodule:: flatwalk.exchange
+   :members:
+   :show-inheritance:
+
+
+Replica-exchange Wang-Landau
+----------------------------
+
+.. automodule:: flatwalk.rewl
    :members:
    :show-inheritance:
