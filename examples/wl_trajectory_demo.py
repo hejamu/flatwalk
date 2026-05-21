@@ -84,7 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("MPLBACKEND", "Agg")
 
     # Late imports so MPLBACKEND env takes effect.
-    from wl_viewer import TrialRecorder, make_trajectory_movie
+    from wl_viewer import (
+        TrialRecorder,
+        build_frame_indices_from_schedule,
+        make_trajectory_movie,
+    )
 
     logging.basicConfig(level=logging.WARNING)
 
@@ -122,7 +126,23 @@ def main(argv: list[str] | None = None) -> int:
         ln_f_initial=1.0, ln_f_final=1e-30,
     )
     driver = WLDriver(cfg)
-    recorder = TrialRecorder(max_records=args.n_trials)
+
+    # Pre-compute frame indices from the schedule so we can capture a
+    # spin-grid snapshot at exactly the trials the renderer will display.
+    # frame_indices are 0-based trial indices; the trial_callback's `t` is
+    # 1-based after the increment, so capture_at uses (t == idx + 1).
+    frame_schedule = _parse_schedule(args.schedule) if args.schedule else None
+    if frame_schedule is not None:
+        frame_indices = build_frame_indices_from_schedule(frame_schedule, args.n_trials)
+        capture_at = {int(idx) + 1 for idx in frame_indices}
+    else:
+        capture_at = None  # capture every trial
+
+    recorder = TrialRecorder(
+        max_records=args.n_trials,
+        state_capturer=lambda w: w.state[0].copy(),  # state = (spins, energy)
+        capture_at=capture_at,
+    )
 
     print(f"Running WL for {args.n_trials:,} trials (seed={args.seed})...")
     t0 = time.perf_counter()
@@ -135,9 +155,9 @@ def main(argv: list[str] | None = None) -> int:
         max_trials=args.n_trials,
         trial_callback=recorder,
     )
-    print(f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s")
+    print(f"  recorded {len(recorder.t):,} trials in {time.perf_counter() - t0:.2f}s "
+          f"(+ {len(recorder.states):,} spin snapshots)")
 
-    frame_schedule = _parse_schedule(args.schedule) if args.schedule else None
     if frame_schedule is not None:
         print(f"Rendering with piecewise schedule {frame_schedule} → {args.output} ...")
     elif args.n_frames is not None:
@@ -155,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         n_frames=args.n_frames,
         frame_schedule=frame_schedule,
         flatness_threshold=args.flatness,
+        spin_grids=recorder.states or None,
     )
     print(f"  rendered in {time.perf_counter() - t0:.1f}s → {args.output}")
     return 0

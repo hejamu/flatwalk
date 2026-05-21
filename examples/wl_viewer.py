@@ -343,23 +343,51 @@ class TrialRecorder:
     would consume gigabytes.
     """
 
-    def __init__(self, max_records: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        max_records: Optional[int] = None,
+        state_capturer=None,
+        capture_at: Optional[set] = None,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        max_records:
+            Stop recording after this many trials (None = unlimited).
+        state_capturer:
+            Optional ``callable(walker) -> Any``. When supplied, the
+            captured value is appended to ``self.states`` on each trial
+            (or only at trials whose 1-based ``t`` is in ``capture_at``).
+            Useful for snapshotting e.g. an Ising spin grid for a
+            companion visualization.
+        capture_at:
+            Optional set of 1-based ``t`` values to selectively capture
+            state. Without it (and with a ``state_capturer``), every
+            trial captures state.
+        """
         self.max_records = max_records
+        self.state_capturer = state_capturer
+        self.capture_at = capture_at
         self.t: list[int] = []
         self.bin: list[int] = []
         self.energy: list[float] = []
         self.ln_f: list[float] = []
         self.accepted: list[bool] = []
+        self.states: dict = {}  # 1-based t → captured state
         self._stop = False
 
-    def __call__(self, t, bin_current, energy, ln_f, accepted) -> None:
+    def __call__(self, t, walker, ln_f, accepted) -> None:
         if self._stop:
             return
         self.t.append(t)
-        self.bin.append(bin_current)
-        self.energy.append(energy)
+        self.bin.append(walker.bin_current)
+        self.energy.append(walker.energy)
         self.ln_f.append(ln_f)
         self.accepted.append(accepted)
+        if self.state_capturer is not None and (
+            self.capture_at is None or t in self.capture_at
+        ):
+            self.states[t] = self.state_capturer(walker)
         if self.max_records is not None and len(self.t) >= self.max_records:
             self._stop = True
 
@@ -416,6 +444,7 @@ def make_trajectory_movie(
     n_frames: Optional[int] = None,
     frame_schedule: Optional[list] = None,
     flatness_threshold: float = 0.8,
+    spin_grids: Optional[dict] = None,
     dpi: int = 110,
 ) -> None:
     """Per-trial animation: walker hopping between bins, with H and ``g`` building up.
@@ -449,6 +478,11 @@ def make_trajectory_movie(
     algorithm actually evaluates against ``flatness_threshold``. The
     line resets to zero whenever a halve fires; its ``min/mean`` ratio
     is the flatness number printed in the title.
+
+    If ``spin_grids`` is given (mapping 1-based trial number → 2-D
+    spin array), a fourth panel on the right shows the current spin
+    configuration. Useful for visualizing the Ising lattice alongside
+    the WL bookkeeping.
     """
     from pathlib import Path
 
@@ -556,11 +590,36 @@ def make_trajectory_movie(
         stage_colors = cm.viridis(np.linspace(0.05, 0.92, n_stages))
 
     # ---- figure + axes ----
-    fig, axes = plt.subplots(
-        3, 1, figsize=(11, 9),
-        gridspec_kw={"height_ratios": [3, 3, 2]},
-    )
-    ax_g, ax_H, ax_traj = axes
+    from matplotlib.colors import ListedColormap
+
+    has_spins = spin_grids is not None and len(spin_grids) > 0
+
+    if has_spins:
+        fig = plt.figure(figsize=(15, 9))
+        gs = fig.add_gridspec(
+            3, 3,
+            width_ratios=[20, 1, 8],
+            height_ratios=[3, 3, 2],
+            hspace=0.22, wspace=0.05,
+        )
+        ax_g = fig.add_subplot(gs[0, 0])
+        ax_H = fig.add_subplot(gs[1, 0])
+        ax_traj = fig.add_subplot(gs[2, 0])
+        cax_stage = fig.add_subplot(gs[1, 1])
+        ax_spin = fig.add_subplot(gs[:, 2])
+    else:
+        fig = plt.figure(figsize=(12, 9))
+        gs = fig.add_gridspec(
+            3, 2,
+            width_ratios=[20, 1],
+            height_ratios=[3, 3, 2],
+            hspace=0.22, wspace=0.05,
+        )
+        ax_g = fig.add_subplot(gs[0, 0])
+        ax_H = fig.add_subplot(gs[1, 0])
+        ax_traj = fig.add_subplot(gs[2, 0])
+        cax_stage = fig.add_subplot(gs[1, 1])
+        ax_spin = None
 
     (line_g,) = ax_g.plot([], [], color="C0", lw=2.0, label="WL log g (shifted)")
     if log_g_exact is not None:
@@ -594,8 +653,17 @@ def make_trajectory_movie(
     ax_H.set_ylabel("H(E)  (cumulative)")
     ax_H.set_xlim(bin_centers.min(), bin_centers.max())
     ax_H.grid(alpha=0.3, axis="y")
-    if n_stages > 1:
-        ax_H.legend(loc="upper left", fontsize=7, ncol=min(n_stages, 6))
+
+    # Stage → colour mapping shown as a discrete colorbar in its own axes
+    # to the right of ax_H (replaces the previous in-axes legend).
+    stage_cmap = ListedColormap(list(stage_colors))
+    norm = plt.Normalize(vmin=0, vmax=max(n_stages - 1, 1))
+    sm = plt.cm.ScalarMappable(cmap=stage_cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, cax=cax_stage)
+    if n_stages <= 15:
+        cbar.set_ticks(range(n_stages))
+    cbar.set_label("f-stage")
 
     # Per-stage H overlay on the right-hand axis (what the algorithm
     # checks against ``flatness_threshold``).
@@ -618,7 +686,23 @@ def make_trajectory_movie(
     ax_traj.set_ylim(float(energy_arr.min()) - 4, float(energy_arr.max()) + 4)
     ax_traj.grid(alpha=0.3)
 
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+    # ---- right column: spin configuration ----
+    spin_img = None
+    spin_keys_sorted: Optional[np.ndarray] = None
+    if has_spins:
+        # Build a sorted array of trial-number keys for fast searchsorted lookup.
+        spin_keys_sorted = np.array(sorted(spin_grids.keys()), dtype=np.int64)
+        first_spins = np.asarray(spin_grids[int(spin_keys_sorted[0])])
+        spin_img = ax_spin.imshow(
+            first_spins, cmap="RdBu_r", vmin=-1.4, vmax=1.4,
+            interpolation="nearest", aspect="equal",
+        )
+        ax_spin.set_xticks([])
+        ax_spin.set_yticks([])
+        ax_spin.set_title(f"spin configuration   ({first_spins.shape[0]}×{first_spins.shape[1]})")
+
+    # Don't call tight_layout: it tends to drift the colorbar off-axis under
+    # FuncAnimation. We've already laid out via gridspec.
 
     def animate(i):
         idx = int(frame_indices[i])
@@ -658,6 +742,14 @@ def make_trajectory_movie(
         traj_end = int(traj_idx_for_frame[i]) + 1
         line_traj.set_data(traj_t[:traj_end], traj_E[:traj_end])
         walker_dot.set_data([t_arr[idx]], [energy_arr[idx]])
+
+        # Spin grid (most-recent captured snapshot at or before this trial).
+        if spin_img is not None and spin_keys_sorted is not None:
+            cur_t = int(t_arr[idx])
+            pos = int(np.searchsorted(spin_keys_sorted, cur_t, side="right")) - 1
+            if pos >= 0:
+                key = int(spin_keys_sorted[pos])
+                spin_img.set_data(np.asarray(spin_grids[key]))
 
         halve_tag = f"  ← halve to stage {int(stage_at_frame[i])}" if halve_at_frame[i] else ""
         flat = float(flatness_at_frame[i])

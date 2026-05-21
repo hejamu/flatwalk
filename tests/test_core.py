@@ -402,13 +402,14 @@ class TestRun:
             assert snap.t == (k + 1) * 100
 
     def test_trial_callback_fires_every_trial(self):
-        """`trial_callback` must fire exactly once per trial in order."""
+        """`trial_callback` must fire exactly once per trial in order,
+        receiving the post-trial Walker, ln_f, and accepted flag."""
         sys = _tiny_system(5)
         cfg = WLConfig(bin_scheme=sys["scheme"], n_check=1000, ln_f_final=1e-30)
         events = []
 
-        def cb(t, bin_current, energy, ln_f, accepted):
-            events.append((t, bin_current, accepted))
+        def cb(t, walker, ln_f, accepted):
+            events.append((t, walker.bin_current, walker.energy, ln_f, accepted))
 
         result = WLDriver(cfg).run(
             initial_state=sys["initial_state"],
@@ -425,7 +426,7 @@ class TestRun:
         ts = [e[0] for e in events]
         assert ts == list(range(1, 251))
         # bin values are valid indices
-        for _, bin_current, _ in events:
+        for _, bin_current, _, _, _ in events:
             assert 0 <= bin_current < sys["scheme"].n_bins
 
     def test_progress_callback_unused_when_none(self):
