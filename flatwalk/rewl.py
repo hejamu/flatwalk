@@ -67,15 +67,17 @@ logger = logging.getLogger(__name__)
 def make_windows(
     bin_scheme: BinScheme, n_windows: int, overlap: int
 ) -> list[tuple[float, float]]:
-    """Tile the grid with ``n_windows`` overlapping order-parameter windows.
+    """Tile the grid with ``n_windows`` equal-width overlapping windows.
 
-    Returns a list of ``(low, high)`` value bounds. Adjacent windows share
-    ``overlap`` bins. Bounds are bin *centers*, so they round-trip exactly
-    through :meth:`value_to_index` (a center maps back to its own bin).
+    Returns a list of ``(low, high)`` value bounds. Every window has the same
+    bin width ``Lw`` and adjacent windows share ``overlap`` bins, so the
+    windows are balanced (no artificially narrow end window — important when
+    the density of states is steep in the tails). Bounds are bin *centers*, so
+    they round-trip exactly through :meth:`value_to_index`.
 
-    The base partition splits the ``B`` bins into ``n_windows`` near-equal
-    blocks; each block is then extended by ``overlap`` bins into its right
-    neighbour (the last block is clamped to the top bin).
+    With ``Lw = ceil((B + (W-1)·overlap) / W)`` and stride ``Lw - overlap``,
+    window ``k`` is ``[k·stride, k·stride + Lw - 1]``; the last window is
+    clamped to end on the top bin.
     """
     B = bin_scheme.n_bins
     if n_windows < 1:
@@ -90,11 +92,20 @@ def make_windows(
             f"overlap must be ≥ 1 to keep adjacent windows joinable; got {overlap}"
         )
 
+    width = min(-(-(B + (n_windows - 1) * overlap) // n_windows), B)  # ceil, capped at B
+    stride = width - overlap
+    if stride < 1:
+        raise ValueError(
+            f"overlap ({overlap}) too large for n_bins={B}, n_windows={n_windows}"
+        )
+
     bounds: list[tuple[int, int]] = []
     for k in range(n_windows):
-        b_lo = max(0, min(round(k * B / n_windows), B - 1))
-        b_hi = round((k + 1) * B / n_windows) - 1
-        b_hi = max(b_lo, min(b_hi + overlap, B - 1))  # extend into the next window
+        b_lo = k * stride
+        b_hi = b_lo + width - 1
+        if b_hi >= B - 1 or k == n_windows - 1:
+            b_hi = B - 1
+            b_lo = min(b_lo, b_hi)
         bounds.append((b_lo, b_hi))
 
     # Guard the invariants downstream code relies on: full coverage and a
