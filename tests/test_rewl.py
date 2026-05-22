@@ -83,6 +83,10 @@ class TestMakeWindows:
         for lo, hi in bins:
             covered[lo : hi + 1] = True
         assert covered.all()
+        # Windows are balanced: no end window is left far narrower than the
+        # others (a narrow tail window badly under-resolves a steep DOS there).
+        widths = [hi - lo + 1 for lo, hi in bins]
+        assert min(widths) >= 0.5 * max(widths)
 
     def test_single_window_is_full_range(self):
         scheme = Bin1D(0.0, 10.0, 20)
