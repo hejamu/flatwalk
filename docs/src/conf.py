@@ -49,6 +49,10 @@ sphinx_gallery_conf = {
     "examples_dirs": str(ROOT / "docs" / "examples"),
     "gallery_dirs": "auto_examples",  # written below docs/src/
     "filename_pattern": r"plot_",
+    # The examples form a tutorial sequence; order by filename (the numeric
+    # plot_N_ prefixes) rather than the default code-length sort. The string
+    # form keeps sphinx_gallery_conf picklable (no class object in config).
+    "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
     "doc_module": ("flatwalk",),
     "reference_url": {"flatwalk": None},

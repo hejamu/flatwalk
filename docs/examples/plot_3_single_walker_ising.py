@@ -1,24 +1,32 @@
 """
-2D Ising validation against Beale's exact n(E) (L=4 smoke version)
-==================================================================
+Single-walker Wang-Landau on the 2D Ising model
+===============================================
 
-Runs Wang-Landau sampling on a small 2D Ising lattice, compares the
-recovered density of states against Beale's exact ``n(E)``, and plots
-both curves. This is the smoke version of the project's
-spec §4.4 validation — same pipeline as the full L=8 runner at
-``examples/ising_validation.py``, just with a small lattice and a loose
-``ln_f_final`` so it finishes in a few seconds. The numerical pass
-criteria below are deliberately loose to keep the docs build fast;
-they're tightened in the full CI runner.
+The canonical validation: sample ``g(E)`` of the 2D Ising model with one
+Wang-Landau walker and compare against Beale's exact ``n(E)`` from the
+previous example. This is the smoke version of the spec §4.4 validation —
+the same pipeline as the full ``L=8`` runner at
+``examples/ising_validation.py``, shrunk to ``L=4`` and a loose
+``ln_f_final`` so it finishes in seconds.
 """
 
 # %%
-# Setup
-# -----
+# The user-side callbacks
+# -----------------------
 #
-# ``conf.py`` adds the repo's ``examples/`` directory to ``sys.path``
-# for the docs build; the ``try`` block here is only for standalone
-# execution of the script.
+# The Ising side of the four-callback contract lives in
+# ``examples/ising.py``. Two choices are worth calling out:
+#
+# 1. **The state is ``(spins, cached_E)``.** A single-spin flip changes the
+#    energy by a local ``ΔE``, so carrying the energy in the state keeps
+#    ``energy_fn`` and ``order_parameter_fn`` O(1) instead of O(L²). The
+#    driver treats ``state`` as opaque and never looks inside.
+# 2. **The order parameter *is* the energy** ("WL on E"). With ``beta = 0``
+#    the acceptance ``Δ = −β·(E_new − E_old) + g[bin_old] − g[bin_new]``
+#    collapses to ``g[bin_old] − g[bin_new]``.
+#
+# ``conf.py`` puts the repo's ``examples/`` on ``sys.path`` for the docs
+# build; the ``try`` block is only for running this script standalone.
 
 import sys
 
@@ -37,8 +45,8 @@ import numpy as np  # noqa: E402
 from flatwalk import Bin1D, WLConfig, WLDriver  # noqa: E402
 
 # %%
-# Compute the exact reference
-# ---------------------------
+# The exact reference
+# -------------------
 
 L = 4
 n_E_exact = beale.beale_g_E(L)
@@ -49,7 +57,7 @@ print(f"L={L}: {len(n_E_exact)} distinct energies, total = 2^{L * L}")
 # ---------------
 #
 # Single seed, ``ln_f_final = 1e-5`` — well above the spec target of
-# ``1e-8``, but enough for the curve to take its right shape on L=4.
+# ``1e-8``, but enough for the curve to take its right shape on ``L=4``.
 
 cb = ising.make_ising_callbacks(L)
 low, high, n_bins = ising.ising_energy_bins(L)
@@ -81,9 +89,9 @@ print(
 # Compare against Beale
 # ---------------------
 #
-# Normalise ``g_WL`` to match the exact total over valid bins, then
-# compute per-bin relative error and exclude the two extreme bins
-# (g = 2) where relative noise dominates.
+# Normalise ``g_WL`` to match the exact total over valid bins, then compute
+# per-bin relative error, excluding the two extreme bins (``g = 2``) where
+# relative noise dominates.
 
 log_g_exact = beale.log_g_E_array(L, n_E_exact, scheme.centers)
 n_E_exact_arr = np.exp(log_g_exact)
@@ -110,9 +118,9 @@ assert eps_c.mean() < 0.2, f"smoke validation mean ε too large: {eps_c.mean():.
 # Plot log g(E)
 # -------------
 #
-# Both curves shifted so their minimum over visited bins is 0. The WL
-# line (dots) should track the Beale reference (dashed) within the
-# per-bin error reported above.
+# Both curves shifted so their minimum over visited bins is 0. The WL line
+# (dots) should track the Beale reference (dashed) within the per-bin error
+# reported above.
 
 E_axis = scheme.centers[valid]
 g_WL_shift = result.g[valid] - result.g[valid].min()
@@ -128,3 +136,20 @@ ax.legend()
 ax.grid(alpha=0.3)
 fig.tight_layout()
 plt.show()
+
+# %%
+# Reaching the strict criteria
+# ----------------------------
+#
+# This smoke run is single-seed at ``ln_f_final = 1e-5`` and only needs to
+# look right. The full ``L=8`` runner that meets spec §4.4 (``max ε < 0.05``,
+# ``mean ε < 0.01``) adds two things, both *outside* the driver:
+#
+# * **Tuned hyperparameters** ``n_check = 1000``, ``flatness_threshold =
+#   0.95`` (the spec marks both as tunable). A smaller ``n_check`` enters the
+#   1/t regime sooner; a stricter flatness gives each f-stage more samples.
+# * **Multi-seed averaging** (``--n-seeds 3``). A single-walker run leaves
+#   a few-percent ``E ↔ −E`` asymmetry in the tails — the walker reaches one
+#   tail first and accumulates more large-``ln_f`` updates there. Averaging
+#   ``log g`` over independent seeds cuts the variance by ``~1/K``.
+#   Replica-exchange (next example) is the more elegant fix.
