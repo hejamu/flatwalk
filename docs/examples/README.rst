@@ -1,14 +1,13 @@
-Validation gallery
-==================
+Worked examples
+===============
 
-Runnable examples that exercise the same machinery as the spec §4.4
-validation, executed live during every documentation build via
-``sphinx-gallery``. Each example is a self-contained Python script
-that can also be run directly from the command line.
+Runnable tutorials for the flat-histogram methods in ``flatwalk``, executed
+live on every documentation build via ``sphinx-gallery``. They build up in
+order — a toy first run, the exact Ising reference, single-walker
+Wang-Landau, then replica exchange — and each is a self-contained script you
+can also run from the command line.
 
-The full ``ln_f_final = 1e-8`` L=8 validation that satisfies the spec
-pass criteria is too slow to run on every docs build (~15 min);
-``examples/ising_validation.py`` at the repo root is the canonical
-runner for that, executed by CI on every push. The examples in this
-gallery are short smoke versions of the same pipeline that complete
-in seconds.
+These are fast smoke versions; the full ``ln_f_final = 1e-8`` ``L=8`` runs
+that meet the spec pass criteria live at the repo root
+(``examples/ising_validation.py``, ``examples/ising_rewl_validation.py``) and
+run in CI's slow lane.
