@@ -56,6 +56,33 @@ page in these docs means $\log g(Q)$ when it writes `result.g`.
   moves still satisfy detailed balance (derived in
   {doc}`../theory/03-detailed-balance`).
 
+### Getting `propose_move_fn` right
+
+This is the callback with sharp edges. Four rules cover the common mistakes:
+
+- **Return a fresh `state`; never mutate the input in place.** The driver keeps
+  your returned object only when the move is accepted — on rejection it keeps the
+  *original*. If you edit `state` in place, a rejected move silently corrupts the
+  walker. Copy first: `new = spins.copy(); new[i, j] = -s`.
+- **Draw only from the `rng` you are handed.** It is the driver's generator;
+  using it (never `np.random.*`) is what makes runs reproducible and
+  checkpoint/resume bit-identical.
+- **Return the pair `(new_state, log_proposal_ratio)`.** A bare `new_state` is a
+  common slip. For a symmetric proposal the ratio is `0.0`.
+- **Keep moves reversible and ergodic.** Every proposal needs a reverse with
+  non-zero probability (detailed balance), and the moves together must be able to
+  reach every bin you sample over.
+
+**Asymmetric proposals.** When the forward and reverse proposal probabilities
+differ, return $\log\!\big[\pi(\text{old}\mid\text{new})/\pi(\text{new}\mid\text{old})\big]$;
+this is the only place that term is non-zero. The derivation is in
+{doc}`../theory/03-detailed-balance`.
+
+**Tip — keep it O(1).** If energy or the order parameter can be updated
+incrementally, carry the cached value *inside* the returned state. The
+{doc}`Ising quickstart <quickstart>` carries `(spins, E)` and updates `E` by the
+local `ΔE`, so `energy_fn` and `order_parameter_fn` stay O(1) instead of O(L²).
+
 For two or more walkers, each callable has a **batched** sibling that takes one
 opaque `state_batch` of `N` walkers and returns `N` results in one call — so a
 vectorised backend evaluates them all at once. See

@@ -1,4 +1,9 @@
-# flatwalk
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/src/_static/flatwalk-logo-dark.svg">
+    <img alt="flatwalk" src="docs/src/_static/flatwalk-logo-light.svg" width="320">
+  </picture>
+</p>
 
 [![CI](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml/badge.svg)](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

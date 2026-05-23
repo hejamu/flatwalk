@@ -149,6 +149,7 @@ fig.tight_layout()
 plt.show()
 
 # %%
-# The error is lower, but a single walker still leaves a stubborn residue in the
-# steep tails of ``g`` — and a faint ``E ↔ −E`` asymmetry from whichever tail the
-# lone walker reached first. The next tutorial attacks that with more walkers.
+# The error is lower — but reaching it took many iterations, and every one of
+# them called back into the energy function. When that backend is expensive, the
+# number of calls is the cost. The next tutorial cuts it by advancing many
+# walkers per call.

@@ -19,11 +19,14 @@ $$
 
 Because all walkers see the same evolving bias, they spread out and cooperate to
 flatten one histogram. A stage now accumulates $N$ times the statistics in the
-same number of ticks, so $g$ converges faster and the per-bin variance falls
-roughly as $1/N$. The leftover single-walker pathologies — most visibly an
-$E\leftrightarrow -E$ asymmetry on a symmetric system, from whichever tail the
-lone walker happened to reach first — average out across walkers.
-{doc}`Tutorial 4 </auto_tutorials/plot_4_more_walkers>` measures both effects.
+same number of ticks — and since one tick is one batched backend call (below),
+reaching a given quality takes about $N$ times fewer calls. Read the other way,
+at fixed call count $g$ converges further and the per-bin variance falls. The
+leftover single-walker pathologies — most visibly an $E\leftrightarrow -E$
+asymmetry on a symmetric system, from whichever tail the lone walker happened to
+reach first — average out across walkers.
+{doc}`Tutorial 4 </auto_tutorials/plot_4_more_walkers>` measures the throughput
+this buys.
 
 ## The scatter, done correctly
 
