@@ -166,70 +166,44 @@ spec §4.4 criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
 within 0.5%, `C_V` peak temperature within 2%). The slow lane of CI
 runs this on every push.
 
-## Architectural notes (for future extension)
+The replica-exchange path has its own end-to-end check,
+[examples/ising_rewl_validation.py](examples/ising_rewl_validation.py): L=8
+with overlapping windows on E, exchanged periodically, with the joined `g(E)`
+held to the same criteria. It runs in the same slow CI lane.
 
-These choices distinguish flatwalk from a throwaway driver. They cost ~150
-extra lines of code now and save rewriting the core later.
+## Design and roadmap
 
-1. **`BinScheme` abstraction.** All bin indexing goes through
-   `bin_scheme.value_to_index(q)` and `bin_scheme.index_to_center(idx)`.
-   Adding `Bin2D(...)` for a 2D order parameter requires no driver changes
-   — just implement the abstract methods and pass the new scheme to
-   `WLConfig`.
-
-2. **Vector-typed order parameter.** `order_parameter_fn` returns
-   `Union[float, np.ndarray]`. The 1D Ising case returns a float; a future
-   `(E, M)` case returns a length-2 ndarray. The driver passes the value
-   directly to `bin_scheme.value_to_index`.
-
-3. **`Walker` ownership.** Per-trial state (current configuration, cached
-   energy, RNG, counters) lives on a `Walker`, not on `WLDriver`. The
-   per-trial logic is `WLDriver._trial_step(walker, …)`. The N-walker
-   generalisation is a `WalkerBatch` carrying stacked state plus
-   batched callables (one GPU call per tick, not N sequential ones);
-   see [docs/src/storyline.md](docs/src/storyline.md).
-
-4. **`ExchangeHandler` hook point.** The main loop already has the call
-   site for REWL exchanges every `n_exchange` trials. The current build
-   doesn't ship an implementation, so single-walker runs pay zero cost
-   (the field is `None`).
-
-### 2D-WL validation target
-
-When the driver is later extended to 2D order parameters, the analogous
-validation is **2D Ising in (E, M)**: Beale's recursion can be extended
-to give exact `g(E, M)` for moderate L, and the same `max ε < 5%`,
-`mean ε < 1%` criteria apply per bin.
-
-### REWL validation target
-
-When REWL is implemented, the canonical validation is to run L=8 Ising
-with N_windows = 4 overlapping windows on E, exchange every N_exchange
-trials, and verify the joined `g(E)` matches the single-window result
-within statistical noise.
+flatwalk is deliberately built so the unbuilt pieces drop in without rewriting
+the core: bin indexing is behind the `BinScheme` ABC (so a future `BinND` is
+additive), the order parameter is vector-typed (so an `(E, M)` parameter needs
+no driver change), and per-walker state lives on `Walker`/`WalkerBatch` rather
+than on the driver. The full rationale, the batched-walker design, and the
+validation targets for the planned ≥2D / `(E, M)` work are in
+[docs/src/storyline.md](docs/src/storyline.md).
 
 ## Layout
 
 ```
 flatwalk/             — the package
   binning.py            BinScheme ABC + Bin1D
-  walker.py             Walker dataclass
-  core.py               WLConfig, WLResult, WLDriver
-  exchange.py           ExchangeHandler ABC (REWL hook)
+  walker.py             Walker + WalkerBatch state containers
+  core.py               WLConfig, WLResult, WLDriver (.run / .run_batched)
+  exchange.py           ExchangeHandler ABC (shared-g exchange hook)
+  rewl.py               RewlDriver, ReplicaExchangeHandler, make_windows, join_g
   diagnostics.py        TraceWriter + TraceRow + read_trace
   io.py                 save_checkpoint / load_checkpoint
-tests/                — pytest suite
-  test_binning.py / test_core.py / test_checkpoint.py / test_diagnostics.py
-  test_imports.py / test_ising.py / test_beale.py / test_validation_quick.py
+tests/                — pytest suite (one module per package module)
 examples/             — user-side code that fills the contract
   beale.py              Exact n(E) via transfer matrix + CRT
   ising.py              Ising callbacks for the WL driver
-  ising_validation.py   End-to-end pass/fail run
+  ising_batched.py      Batched-walker Ising run
+  ising_validation.py   Single-walker end-to-end pass/fail run
+  ising_rewl_validation.py  Replica-exchange end-to-end pass/fail run
   cache/                Beale results cached as TSV (created on first run)
-docs/src/             — Sphinx documentation source
+docs/src/             — Sphinx docs source (guide, gallery, API, storyline)
 tox.ini               — tests / lint / format / docs / build envs
 ```
 
 ## License
 
-MIT.
+Released under the [MIT License](LICENSE).
