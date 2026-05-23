@@ -92,8 +92,9 @@ confinement removed.
   tick across all windows.
 
 {doc}`Tutorial 5 </auto_tutorials/plot_5_replica_exchange>` builds this up in
-order — first windows + gluing with no exchange, then exchange on top — against
-the exact reference.
+order: first windows + gluing recover $g$ on the Ising model with no exchange
+(the symmetric basins make it benign), then a deliberately asymmetric two-basin
+model where windowing alone gets the wrong $g$ and only exchange recovers it.
 
 ```{seealso}
 **See it run:** {doc}`Tutorial 5 </auto_tutorials/plot_5_replica_exchange>` and
