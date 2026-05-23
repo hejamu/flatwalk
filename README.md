@@ -27,17 +27,13 @@ callbacks do all state manipulation.
 
 - **Single-walker Wang-Landau** on a 1D order parameter, with the
   Belardinelli-Pereyra 1/t-WL transition (`WLDriver.run`).
-- **Batched walkers** — N walkers advanced through a shared `g` in one
-  stacked callback call per tick, never a Python loop over walkers
-  (`WLDriver.run_batched`). This is the path by which a GPU energy
-  backend (PyTorch, JAX) gets its speedup: one forward pass per tick,
-  not N sequential ones.
-- **Replica-exchange Wang-Landau** — W overlapping windows, one walker
-  each, with batched entropy-based exchange and a `join_g` step that
-  stitches the per-window `g` into a single curve (`RewlDriver`,
+- **Batched walkers** — run N walkers at once for a GPU-friendly energy
+  backend (`WLDriver.run_batched`).
+- **Replica-exchange Wang-Landau** — one walker per overlapping window,
+  exchanged between neighbours and joined into a single `g` (`RewlDriver`,
   `make_windows`, `join_g`).
-- **Atomic checkpoint and bit-identical resume** (full RNG state
-  preserved) for the scalar and batched drivers.
+- **Checkpoint and bit-identical resume**, with the full RNG state
+  preserved, for the scalar and batched drivers.
 - **TSV trace writer** for offline diagnostics.
 - **Validated against Beale's exact `n(E)`** on the 2D Ising L=8 torus,
   cross-checked against brute-force enumeration on L=3 and L=4; both the
@@ -45,12 +41,11 @@ callbacks do all state manipulation.
 
 ### Planned
 
-See [docs/src/storyline.md](docs/src/storyline.md) for design rationale.
+- **≥2D order parameters** (`BinND` alongside `Bin1D`).
+- **2D Ising in (E, M)** as the exact reference for the ≥2D validation.
 
-- **≥2D order parameters.** `BinND` as a sibling of `Bin1D`; the
-  driver's `g` stays a flat 1D ndarray, only the binning changes.
-- **2D Ising in (E, M) Beale extension.** Exact reference for the
-  multi-D order-parameter validation.
+See [docs/src/storyline.md](docs/src/storyline.md) for the design rationale
+behind these.
 
 ## Install
 
