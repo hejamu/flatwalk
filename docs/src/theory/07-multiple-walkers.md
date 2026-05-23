@@ -25,8 +25,8 @@ at fixed call count $g$ converges further and the per-bin variance falls. The
 leftover single-walker pathologies — most visibly an $E\leftrightarrow -E$
 asymmetry on a symmetric system, from whichever tail the lone walker happened to
 reach first — average out across walkers.
-{doc}`Tutorial 4 </auto_tutorials/plot_4_more_walkers>` measures the throughput
-this buys.
+{doc}`Tutorial 4 </auto_tutorials/plot_4_more_walkers>` measures both the
+throughput and the coverage this buys.
 
 ## The scatter, done correctly
 

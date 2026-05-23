@@ -2,9 +2,10 @@
 5. Replica exchange: windows that talk to each other
 ====================================================
 
-More walkers buy throughput, but in tutorial 4 every walker still had to roam
-the *entire* energy axis — and the steep tails of ``g`` stayed the slowest part
-for each of them. Replica-exchange Wang-Landau (REWL) takes the opposite tack: split
+More walkers buy throughput and steadier, more symmetric coverage, but in
+tutorial 4 every walker still had to roam the *entire* energy axis — and the
+steep tails of ``g`` stayed the slowest part for each of them. Replica-exchange
+Wang-Landau (REWL) takes the opposite tack: split
 the energy range into overlapping **windows**, confine one walker to each, and
 let neighbouring windows **exchange** configurations now and then. Each walker
 now has an easy local job; the exchanges keep the whole thing globally

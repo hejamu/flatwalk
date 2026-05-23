@@ -695,6 +695,12 @@ class WLDriver:
         all use the same units as the scalar `run`; with ``n_walkers == 1`` the
         bookkeeping reduces to the scalar schedule exactly.
 
+        In particular, ``max_trials`` caps the **global** number of trial moves —
+        the total summed across all walkers (``n_walkers`` per tick), *not* a
+        per-walker count. A run of ``N`` walkers therefore stops after about
+        ``max_trials / N`` ticks (i.e. batched backend calls), each walker
+        contributing roughly ``max_trials / N`` moves.
+
         Replica exchange (per-window ``g``) is docs §5 and not wired here yet;
         passing ``exchange_handler`` raises ``NotImplementedError``.
         """
