@@ -30,8 +30,8 @@ $$
 No new sampling is needed for a new temperature — only re-evaluating these sums.
 A single Wang-Landau run therefore replaces an entire temperature scan of
 canonical simulations. {doc}`Tutorial 2 </auto_tutorials/plot_2_wang_landau>`
-draws $\langle E\rangle(T)$ and $C_V(T)$ this way; {doc}`Tutorial 6
-</auto_tutorials/plot_6_thermodynamics>` adds $F$ and $S$.
+draws $\langle E\rangle(T)$ and $C_V(T)$ this way; {doc}`Tutorial 7
+</auto_tutorials/plot_7_thermodynamics>` adds $F$ and $S$.
 
 ## The additive constant
 
@@ -51,8 +51,8 @@ $$
 
 which determines the shift exactly. After applying it, $S/k_B \to \ln
 \Omega_{\text{tot}} = N\ln 2$ as $T\to\infty$ — every state equally likely — a
-useful check that the normalisation is right. {doc}`Tutorial 6
-</auto_tutorials/plot_6_thermodynamics>` does exactly this and verifies the
+useful check that the normalisation is right. {doc}`Tutorial 7
+</auto_tutorials/plot_7_thermodynamics>` does exactly this and verifies the
 high-temperature entropy.
 
 ## Doing the sums without overflow
@@ -83,6 +83,6 @@ $\ln g = -\infty$ contributes zero weight automatically.
 
 ```{seealso}
 **See it run:** {doc}`Tutorial 2 </auto_tutorials/plot_2_wang_landau>` and the
-capstone {doc}`Tutorial 6 </auto_tutorials/plot_6_thermodynamics>`.
+capstone {doc}`Tutorial 7 </auto_tutorials/plot_7_thermodynamics>`.
 **Next:** {doc}`05-wang-landau` — how `result.g` is produced in the first place.
 ```
