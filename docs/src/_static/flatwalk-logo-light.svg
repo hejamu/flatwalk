@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 196 60" role="img" aria-label="flatwalk">
+  <title>flatwalk</title>
+  <!-- -log g(E): an entropic well (minimum at the likely states) filled up
+       with bias to a flat surface; the wordmark rides that flat surface -->
+  <defs>
+    <clipPath id="belowfill"><rect x="0" y="27" width="196" height="33"/></clipPath>
+  </defs>
+  <!-- teal fill: the well interior, clipped flat at the fill level -->
+  <path d="M10 12 C15 41 24 43 30 43 C37 43 46 31 50 27 L10 27 Z"
+        fill="#14B8A6" fill-opacity="0.32" clip-path="url(#belowfill)"/>
+  <!-- the -log g(E) landscape curve -->
+  <path d="M10 12 C15 41 24 43 30 43 C37 43 46 31 50 27"
+        fill="none" stroke="#334155" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the flat surface, carrying the wordmark and the walker -->
+  <path d="M50 27 L184 27" fill="none" stroke="#14B8A6" stroke-width="3.2" stroke-linecap="round"/>
+  <circle cx="184" cy="27" r="3.2" fill="#14B8A6"/>
+  <text x="58" y="23" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="26" font-weight="600" letter-spacing="-0.5" fill="#334155">flatwalk</text>
+</svg>

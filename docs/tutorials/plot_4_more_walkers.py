@@ -1,22 +1,28 @@
 """
-4. More walkers, less variance
-==============================
+4. More walkers, fewer backend calls
+====================================
 
-A single Wang-Landau walker has to traverse the whole energy axis by itself. It
-reaches one tail before the other and piles up large-``ln f`` updates there, so
-even with the 1/t schedule a lone run leaves a few-percent error that wobbles
-from seed to seed — and a faint ``E ↔ −E`` asymmetry, even though the Ising
-``g(E)`` is exactly symmetric.
+Going deeper costs iterations. To halve the error you run far longer, and every
+one of those steps calls back into your energy function. When that backend is
+expensive — a GPU model, an MPI kernel — the number of *calls* is what sets the
+wall-clock.
 
-Running several walkers through *one shared* ``g`` averages that away: each bin
-collects contributions from many walkers per stage. With flatwalk this is
-:meth:`~flatwalk.WLDriver.run_batched` — one stacked call per tick, no Python
-loop over walkers. The maths is in :doc:`/theory/07-multiple-walkers`.
+This is what multiple walkers are for. flatwalk advances ``N`` walkers as a
+single batched call per tick (:meth:`~flatwalk.WLDriver.run_batched` — no Python
+loop over walkers), all feeding *one shared* ``g``. So each tick gathers ``N``
+times the samples for the price of one backend call. Reaching a given quality
+then takes about ``N`` times fewer ticks — an ``N``× throughput win on a
+vectorised backend, for the same-quality ``g``. The maths is in
+:doc:`/theory/07-multiple-walkers`.
 """
 
 # %%
 # Setup
 # -----
+#
+# We reach the *same* target ``ln_f_final`` with ``N = 1, 2, 4, 8, 16`` walkers
+# and count two things: the final error against Beale, and the number of **ticks**
+# — one tick is one batched backend call, regardless of ``N``.
 
 import sys
 
@@ -40,21 +46,7 @@ low, high, n_bins = ising.ising_energy_bins(L)
 scheme = Bin1D(low, high, n_bins)
 log_g_exact = beale.log_g_E_array(L, beale.beale_g_E(L), scheme.centers)
 finite = np.isfinite(log_g_exact)
-
-scalar_cb = ising.make_ising_callbacks(L)
 batched_cb = ising_batched.make_batched_ising_callbacks(L)
-
-LN_F_FINAL = 1e-4
-N_SEEDS = 4
-N_WALKERS = 8
-
-
-def signed_dev(result):
-    """log g_WL − log g_exact over valid bins, both shifted to min 0."""
-    valid = result.visited & finite
-    gw = result.g[valid] - result.g[valid].min()
-    ge = log_g_exact[valid] - log_g_exact[valid].min()
-    return scheme.centers[valid], gw - ge
 
 
 def max_central_eps(result):
@@ -63,99 +55,80 @@ def max_central_eps(result):
     n_wl = np.exp(result.g[valid] - result.g[valid].max())
     n_wl *= n_exact.sum() / n_wl.sum()
     eps = np.abs(n_wl - n_exact) / n_exact
-    eps[0] = eps[-1] = 0.0
+    eps[0] = eps[-1] = 0.0  # drop the g = 2 corners
     return eps.max()
 
 
 # %%
-# Single walker, several seeds
-# ----------------------------
+# Run each walker count to the same target
+# ----------------------------------------
+#
+# ``t_total`` counts individual moves (``N`` per tick), so ``ticks = t_total / N``
+# is the number of batched backend calls.
 
-single_eps = []
-single_dev = None
-for seed in range(N_SEEDS):
+N_LIST = [1, 2, 4, 8, 16]
+ticks = []
+errors = []
+for n in N_LIST:
+    rng = np.random.default_rng(0)
+    init = rng.choice(np.array([-1, 1], dtype=np.int8), size=(n, L, L))
     res = WLDriver(
-        WLConfig(bin_scheme=scheme, beta=0.0, n_check=1_000, ln_f_final=LN_F_FINAL)
-    ).run(
-        initial_state=ising.random_state(L, np.random.default_rng(seed)),
-        energy_fn=scalar_cb["energy_fn"],
-        order_parameter_fn=scalar_cb["order_parameter_fn"],
-        propose_move_fn=scalar_cb["propose_move_fn"],
-        rng=np.random.default_rng(seed),
-    )
-    single_eps.append(max_central_eps(res))
-    if seed == 0:
-        single_dev = signed_dev(res)
-
-# %%
-# Eight walkers sharing one g, same seeds
-# ---------------------------------------
-
-batched_eps = []
-batched_dev = None
-for seed in range(N_SEEDS):
-    rng = np.random.default_rng(seed)
-    init = rng.choice(np.array([-1, 1], dtype=np.int8), size=(N_WALKERS, L, L))
-    res = WLDriver(
-        WLConfig(bin_scheme=scheme, beta=0.0, n_check=1_000, ln_f_final=LN_F_FINAL)
+        WLConfig(bin_scheme=scheme, beta=0.0, n_check=1_000, ln_f_final=1e-4)
     ).run_batched(
         initial_state=init,
         energy_fn=batched_cb["energy_fn"],
         order_parameter_fn=batched_cb["order_parameter_fn"],
         propose_move_fn=batched_cb["propose_move_fn"],
-        n_walkers=N_WALKERS,
+        n_walkers=n,
         rng=rng,
     )
-    batched_eps.append(max_central_eps(res))
-    if seed == 0:
-        batched_dev = signed_dev(res)
+    ticks.append(res.t_total // n)
+    errors.append(max_central_eps(res))
+    print(f"N={n:2d}: {res.t_total:>8,} moves  ->  {ticks[-1]:>8,} backend calls  "
+          f"max ε={errors[-1]:.3f}")
 
-print(
-    f"single-walker  max ε: mean {np.mean(single_eps):.3f}, spread {np.ptp(single_eps):.3f}"
-)
-print(
-    f"{N_WALKERS}-walker      max ε: mean {np.mean(batched_eps):.3f}, "
-    f"spread {np.ptp(batched_eps):.3f}"
-)
-assert np.mean(batched_eps) <= np.mean(single_eps) + 0.05
+# Same target reached in ~N× fewer backend calls, at the same quality.
+assert ticks[-1] < ticks[0] / 4
+assert max(errors) < 0.3
 
 # %%
 # The win
 # -------
 #
-# Left: the per-seed error — many walkers give a lower, tighter result. Right:
-# the signed deviation from the exact ``g(E)`` for one run of each; the single
-# walker's error grows and tilts in the tails (the ``E ↔ −E`` asymmetry), while
-# the shared-``g`` run stays flat and centred.
+# Left: ticks (backend calls) to reach the target fall almost exactly as ``1/N``
+# (dashed guide) — 16 walkers need ~16× fewer calls than one. Right: the final
+# error is essentially flat across ``N``: the speedup is *not* paid for in
+# quality. More walkers buy the same ``g`` in fewer passes over your backend.
 
-fig, (axB, axD) = plt.subplots(1, 2, figsize=(10, 4))
+N = np.array(N_LIST)
+fig, (axT, axE) = plt.subplots(1, 2, figsize=(10, 4))
 
-axB.plot(np.zeros(N_SEEDS), single_eps, "o", color="C0", label="1 walker")
-axB.plot(np.ones(N_SEEDS), batched_eps, "o", color="C1", label=f"{N_WALKERS} walkers")
-axB.set_xticks([0, 1])
-axB.set_xticklabels(["1 walker", f"{N_WALKERS} walkers"])
-axB.set_ylabel("max ε vs Beale (per seed)")
-axB.set_title("Lower and tighter error")
-axB.grid(alpha=0.3)
+axT.loglog(N, ticks, "o-", color="C0", label="measured")
+axT.loglog(N, ticks[0] / N, "k--", lw=1.0, label="ideal 1/N")
+axT.set_xlabel("walkers N")
+axT.set_ylabel("ticks to reach ln_f_final = 1e-4")
+axT.set_title("Fewer backend calls")
+axT.legend()
+axT.grid(alpha=0.3, which="both")
 
-axD.axhline(0.0, color="k", lw=0.8)
-axD.plot(single_dev[0], single_dev[1], "o-", color="C0", ms=3, label="1 walker")
-axD.plot(
-    batched_dev[0], batched_dev[1], "o-", color="C1", ms=3, label=f"{N_WALKERS} walkers"
-)
-axD.set_xlabel("E")
-axD.set_ylabel("log g_WL − log g_exact")
-axD.set_title("Deviation across the spectrum")
-axD.legend()
-axD.grid(alpha=0.3)
+axE.semilogx(N, errors, "o-", color="C1")
+axE.set_xlabel("walkers N")
+axE.set_ylabel("final max ε vs Beale")
+axE.set_ylim(0, max(errors) * 1.5)
+axE.set_title("Same quality")
+axE.grid(alpha=0.3, which="both")
 
-fig.suptitle(f"L={L} Ising: one walker vs {N_WALKERS} sharing g")
+fig.suptitle(f"L={L} Ising: many walkers, one shared g")
 fig.tight_layout()
 plt.show()
 
 # %%
-# Sharing one ``g`` cuts the variance, and because the walkers advance as a
-# single batched call, an expensive vectorised energy backend is paid once per
-# tick rather than once per walker. But all the walkers still roam the *entire*
-# energy range. The last tutorial confines them to overlapping **windows** and
-# lets them exchange — replica-exchange Wang-Landau.
+# Equivalently — read at *fixed* ticks rather than a fixed target — ``N`` walkers
+# fold ``N``× the samples into ``g`` per call, so the estimate is both more
+# converged and steadier from seed to seed. Either way the lever is the same:
+# more configurations per backend call.
+#
+# But all the walkers still roam the *entire* energy range, and the steep tails
+# of ``g`` stay the slowest part for every one of them. The last tutorial gives
+# each walker an easier, *local* job and lets neighbours trade — replica-exchange
+# Wang-Landau.

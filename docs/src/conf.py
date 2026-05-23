@@ -118,7 +118,10 @@ napoleon_use_ivar = True
 html_theme = "furo"
 html_title = f"flatwalk {version}"
 html_static_path = ["_static"]
+html_favicon = "_static/flatwalk-favicon.svg"
 html_theme_options = {
     "navigation_with_keys": True,
     "sidebar_hide_name": False,
+    "light_logo": "flatwalk-logo-light.svg",
+    "dark_logo": "flatwalk-logo-dark.svg",
 }
