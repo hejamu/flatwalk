@@ -10,6 +10,8 @@ venv/
 .coverage
 docs/build/
 docs/src/auto_examples/
+docs/src/auto_tutorials/
+docs/src/gen_modules/
 docs/src/sg_execution_times.rst
 *.npz
 *.tsv

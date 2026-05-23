@@ -9,7 +9,12 @@ Top-level package
 
 The names below are re-exported from :mod:`flatwalk` for convenience;
 their full documentation lives with the source modules listed in this
-page.
+page. For worked usage see the :doc:`examples <auto_examples/index>` and
+:doc:`tutorials <auto_tutorials/index>`; the snippets below link the ones
+that exercise each object.
+
+.. minigallery:: flatwalk.WLDriver flatwalk.RewlDriver flatwalk.Bin1D
+   :add-heading: Examples and tutorials using the core API
 
 
 Binning
@@ -66,3 +71,6 @@ Replica-exchange Wang-Landau
 .. automodule:: flatwalk.rewl
    :members:
    :show-inheritance:
+
+.. minigallery:: flatwalk.RewlDriver flatwalk.make_windows flatwalk.join_g
+   :add-heading: Examples and tutorials using replica exchange

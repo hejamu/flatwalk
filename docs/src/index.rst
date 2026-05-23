@@ -5,31 +5,50 @@ flatwalk is an enhanced sampling library implementing flat-histogram
 methods while being order-parameter and energy-backend agnostic.
 flatwalk does the sampling, the user provides the system to sample.
 
+New here? Read the :doc:`overview <intro/overview>`, then walk the
+:doc:`tutorials <auto_tutorials/index>` for a guided tour, reach for the
+:doc:`examples <auto_examples/index>` when you want a script to adapt, and
+consult the :doc:`theory <theory/index>` for the why behind each method.
+
 .. toctree::
    :maxdepth: 2
-   :caption: User guide
+   :caption: Introduction
 
-   get-started
+   intro/overview
+   intro/install
+   intro/the-contract
+   intro/quickstart
 
 .. toctree::
    :maxdepth: 2
-   :caption: Validation and examples
+   :caption: Tutorials
 
-   validation
+   auto_tutorials/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples
+
    auto_examples/index
 
 .. toctree::
    :maxdepth: 2
-   :caption: Design and roadmap
+   :caption: Theory
 
-   storyline
-   design-unified-batched-step
+   theory/index
 
 .. toctree::
    :maxdepth: 2
    :caption: Reference
 
    api
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Background
+
+   background/storyline
+   background/design-unified-batched-step
 
 
 Indices
