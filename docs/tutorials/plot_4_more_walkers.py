@@ -143,7 +143,9 @@ eff_eps = []
 for n in N_LIST:
     res = run(n, max_trials=n * TICKS)
     eff_eps.append(max_central_eps(res))
-    print(f"N={n:2d}: {TICKS:,} ticks = {res.t_total:>9,} moves   max ε = {eff_eps[-1]:.3f}")
+    print(
+        f"N={n:2d}: {TICKS:,} ticks = {res.t_total:>9,} moves   max ε = {eff_eps[-1]:.3f}"
+    )
 
 # Same number of (expensive) calls, far lower error with more walkers.
 assert eff_eps[-1] < eff_eps[0] / 2
