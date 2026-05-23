@@ -1,18 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 196 60" role="img" aria-label="flatwalk">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 224 74" role="img" aria-label="flatwalk">
   <title>flatwalk</title>
-  <!-- density of states as a bell-shaped histogram, settling onto a flat
-       (leveled) line; the wordmark rides the flat part, walker dot trails -->
-  <path d="M8 46 L184 46" fill="none" stroke="#2DD4BF" stroke-width="3.2" stroke-linecap="round"/>
-  <g fill="#CBD5E1">
-    <rect x="10" y="39" width="4" height="7" rx="1"/>
-    <rect x="16" y="31" width="4" height="15" rx="1"/>
-    <rect x="22" y="20" width="4" height="26" rx="1"/>
-    <rect x="28" y="14" width="4" height="32" rx="1"/>
-    <rect x="34" y="20" width="4" height="26" rx="1"/>
-    <rect x="40" y="31" width="4" height="15" rx="1"/>
-    <rect x="46" y="39" width="4" height="7" rx="1"/>
+  <!-- asymmetric double-well -log g(E), filled with histogram bars up to a flat
+       surface; the wordmark rides the flat line inside the wells -->
+  <g fill="#2DD4BF">
+    <rect x="29.5" y="30" width="5" height="7.8" rx="1"/>
+    <rect x="35.5" y="30" width="5" height="20.4" rx="1"/>
+    <rect x="41.5" y="30" width="5" height="28.5" rx="1"/>
+    <rect x="47.5" y="30" width="5" height="32.8" rx="1"/>
+    <rect x="53.5" y="30" width="5" height="34.3" rx="1"/>
+    <rect x="59.5" y="30" width="5" height="33.5" rx="1"/>
+    <rect x="65.5" y="30" width="5" height="31.2" rx="1"/>
+    <rect x="71.5" y="30" width="5" height="27.8" rx="1"/>
+    <rect x="77.5" y="30" width="5" height="23.9" rx="1"/>
+    <rect x="83.5" y="30" width="5" height="19.8" rx="1"/>
+    <rect x="89.5" y="30" width="5" height="16.0" rx="1"/>
+    <rect x="95.5" y="30" width="5" height="12.7" rx="1"/>
+    <rect x="101.5" y="30" width="5" height="10.1" rx="1"/>
+    <rect x="107.5" y="30" width="5" height="8.4" rx="1"/>
+    <rect x="113.5" y="30" width="5" height="7.5" rx="1"/>
+    <rect x="119.5" y="30" width="5" height="7.6" rx="1"/>
+    <rect x="125.5" y="30" width="5" height="8.4" rx="1"/>
+    <rect x="131.5" y="30" width="5" height="9.9" rx="1"/>
+    <rect x="137.5" y="30" width="5" height="11.8" rx="1"/>
+    <rect x="143.5" y="30" width="5" height="13.8" rx="1"/>
+    <rect x="149.5" y="30" width="5" height="15.6" rx="1"/>
+    <rect x="155.5" y="30" width="5" height="16.6" rx="1"/>
+    <rect x="161.5" y="30" width="5" height="16.5" rx="1"/>
+    <rect x="167.5" y="30" width="5" height="14.6" rx="1"/>
+    <rect x="173.5" y="30" width="5" height="10.3" rx="1"/>
+    <rect x="179.5" y="30" width="5" height="2.7" rx="1"/>
   </g>
-  <circle cx="184" cy="46" r="3.2" fill="#2DD4BF"/>
-  <text x="58" y="42" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
-        font-size="26" font-weight="600" letter-spacing="-0.5" fill="#CBD5E1">flatwalk</text>
+  <path d="M9 8 C 15 17 23.5 19 29.5 30 L31.5 36.5 L33.5 41.4 L35.5 45.8 L37.5 49.6 L39.5 52.8 L41.5 55.6 L43.5 58.0 L45.5 59.9 L47.5 61.4 L49.5 62.6 L51.5 63.4 L53.5 64.0 L55.5 64.3 L57.5 64.3 L59.5 64.1 L61.5 63.6 L63.5 63.0 L65.5 62.3 L67.5 61.4 L69.5 60.4 L71.5 59.3 L73.5 58.1 L75.5 56.8 L77.5 55.5 L79.5 54.2 L81.5 52.8 L83.5 51.5 L85.5 50.2 L87.5 48.8 L89.5 47.6 L91.5 46.3 L93.5 45.1 L95.5 44.0 L97.5 43.0 L99.5 42.0 L101.5 41.1 L103.5 40.3 L105.5 39.6 L107.5 39.0 L109.5 38.5 L111.5 38.1 L113.5 37.8 L115.5 37.6 L117.5 37.5 L119.5 37.4 L121.5 37.5 L123.5 37.7 L125.5 38.0 L127.5 38.3 L129.5 38.7 L131.5 39.2 L133.5 39.7 L135.5 40.3 L137.5 40.9 L139.5 41.6 L141.5 42.3 L143.5 43.0 L145.5 43.6 L147.5 44.3 L149.5 44.9 L151.5 45.4 L153.5 45.9 L155.5 46.3 L157.5 46.6 L159.5 46.7 L161.5 46.8 L163.5 46.6 L165.5 46.2 L167.5 45.7 L169.5 44.9 L171.5 43.8 L173.5 42.4 L175.5 40.7 L177.5 38.7 L179.5 36.3 L181.5 33.5 L184.5 30 C 190.5 19 209 17 215 8" fill="none" stroke="#CBD5E1" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.5 30 L184.5 30" stroke="#2DD4BF" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="112" y="26" text-anchor="middle"
+        font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="25" font-weight="600" letter-spacing="-0.5" fill="#CBD5E1">flatwalk</text>
 </svg>
