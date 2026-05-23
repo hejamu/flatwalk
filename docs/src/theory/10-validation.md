@@ -62,8 +62,8 @@ Both galleries execute against this reference on every docs build:
   — recovering $g(E)$ with {doc}`Wang-Landau </auto_tutorials/plot_2_wang_landau>`,
   sharpening it with the {doc}`1/t schedule </auto_tutorials/plot_3_one_over_t>`,
   cutting variance with {doc}`more walkers </auto_tutorials/plot_4_more_walkers>`
-  and {doc}`replica exchange </auto_tutorials/plot_5_replica_exchange>`, and
-  checking the {doc}`thermodynamics </auto_tutorials/plot_6_thermodynamics>`
+  and {doc}`replica exchange </auto_tutorials/plot_6_replica_exchange>`, and
+  checking the {doc}`thermodynamics </auto_tutorials/plot_7_thermodynamics>`
   against Beale.
 - The {doc}`examples </auto_examples/index>` give the same comparisons as compact
   recipes: the {doc}`exact reference </auto_examples/plot_2_beale_reference>`

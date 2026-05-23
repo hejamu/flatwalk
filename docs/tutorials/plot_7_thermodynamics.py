@@ -1,5 +1,5 @@
 """
-6. Thermodynamics from a converged g(E)
+7. Thermodynamics from a converged g(E)
 =======================================
 
 The journey ends where flat-histogram sampling was always headed: a single

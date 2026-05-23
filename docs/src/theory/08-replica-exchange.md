@@ -91,13 +91,17 @@ confinement removed.
   multiple-per-window correct), so a vectorised energy backend is paid once per
   tick across all windows.
 
-{doc}`Tutorial 5 </auto_tutorials/plot_5_replica_exchange>` builds this up in
-order: first windows + gluing recover $g$ on the Ising model with no exchange
-(the symmetric basins make it benign), then a deliberately asymmetric two-basin
-model where windowing alone gets the wrong $g$ and only exchange recovers it.
+This is built up over two tutorials. {doc}`Tutorial 5
+</auto_tutorials/plot_5_windows_gluing>` shows windows + gluing recovering $g$ on
+the Ising model with no exchange (the symmetric basins make it benign);
+{doc}`Tutorial 6 </auto_tutorials/plot_6_replica_exchange>` then builds a
+deliberately asymmetric two-basin model where a single full-range walker is fine,
+windowing alone gets the wrong $g$, and only exchange recovers it.
 
 ```{seealso}
-**See it run:** {doc}`Tutorial 5 </auto_tutorials/plot_5_replica_exchange>` and
-the {doc}`REWL recipe </auto_examples/plot_5_replica_exchange_ising>`.
+**See it run:** {doc}`Tutorial 5 (windows + gluing)
+</auto_tutorials/plot_5_windows_gluing>`, {doc}`Tutorial 6 (replica exchange)
+</auto_tutorials/plot_6_replica_exchange>`, and the {doc}`REWL recipe
+</auto_examples/plot_5_replica_exchange_ising>`.
 **Next:** {doc}`09-higher-d`.
 ```

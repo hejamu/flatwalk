@@ -173,6 +173,6 @@ plt.show()
 # shared ``g`` per backend call.
 #
 # But every walker still roams the *entire* energy range, and the steep tails of
-# ``g`` stay the slowest part for each of them. The last tutorial gives each
-# walker an easier, *local* job — its own slice of the spectrum — and lets
-# neighbours trade: replica-exchange Wang-Landau.
+# ``g`` stay the slowest part for each of them. The next tutorial gives each
+# walker an easier, *local* job — its own slice of the spectrum — by splitting the
+# range into windows and gluing the pieces back together.
