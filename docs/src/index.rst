@@ -23,6 +23,7 @@ flatwalk does the sampling, the user provides the system to sample.
    :caption: Design and roadmap
 
    storyline
+   design-unified-batched-step
 
 .. toctree::
    :maxdepth: 2

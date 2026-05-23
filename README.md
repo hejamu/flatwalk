@@ -27,10 +27,12 @@ callbacks do all state manipulation.
 
 - **Single-walker Wang-Landau** on a 1D order parameter, with the
   Belardinelli-Pereyra 1/t-WL transition (`WLDriver.run`).
-- **Batched walkers** — run N walkers at once for a GPU-friendly energy
-  backend (`WLDriver.run_batched`).
-- **Replica-exchange Wang-Landau** — one walker per overlapping window,
-  exchanged between neighbours and joined into a single `g` (`RewlDriver`,
+- **Batched walkers** — run N walkers at once through a shared `g`, so a
+  vectorised energy backend (GPU, JAX, MPI, …) evaluates them in one call per
+  tick (`WLDriver.run_batched`).
+- **Replica-exchange Wang-Landau** — one walker per overlapping window, each
+  building its own `g`; neighbouring windows exchange configurations, and
+  `join_g` stitches the per-window curves into one (`RewlDriver`,
   `make_windows`, `join_g`).
 - **Checkpoint and bit-identical resume**, with the full RNG state
   preserved, for the scalar and batched drivers.
@@ -41,6 +43,10 @@ callbacks do all state manipulation.
 
 ### Planned
 
+- **Multiple walkers per window in REWL.** The shared batched trial step
+  already scatters correctly into per-window `g`, so this needs only the
+  walker→window map, pooled per-window flatness, and cross-window pair
+  exchange in `RewlDriver`.
 - **≥2D order parameters** (`BinND` alongside `Bin1D`).
 - **2D Ising in (E, M)** as the exact reference for the ≥2D validation.
 
@@ -175,6 +181,13 @@ no driver change), and per-walker state lives on `Walker`/`WalkerBatch` rather
 than on the driver. The full rationale, the batched-walker design, and the
 validation targets for the planned ≥2D / `(E, M)` work are in
 [docs/src/storyline.md](docs/src/storyline.md).
+
+Both batched drivers share one trial step: `run_batched` (single shared `g`)
+and `RewlDriver` (one `g` per window) are thin adapters over the same
+primitive, parameterised by a walker→group map and per-walker bin bounds. That
+unification — and how it makes multiple walkers per window fall out — is
+written up in
+[docs/src/design-unified-batched-step.md](docs/src/design-unified-batched-step.md).
 
 ## Layout
 
