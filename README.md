@@ -1,5 +1,9 @@
 # flatwalk
 
+[![CI](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml/badge.svg)](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
 flatwalk is an enhanced sampling library implementing flat-histogram
 methods while being order-parameter and energy-backend agnostic.
 flatwalk does the sampling, the user provides the system to sample.
@@ -21,31 +25,32 @@ callbacks do all state manipulation.
 
 ### Implemented
 
-- 1D order-parameter Wang-Landau with the Belardinelli-Pereyra 1/t-WL
-  transition
-- Atomic checkpoint and bit-identical resume (full RNG state preserved)
-- TSV trace writer for offline diagnostics
-- Validated against Beale's exact `n(E)` on the 2D Ising L=8 torus,
-  cross-checked against brute-force enumeration on L=3 and L=4; the
-  full validation runs in CI
+- **Single-walker Wang-Landau** on a 1D order parameter, with the
+  Belardinelli-Pereyra 1/t-WL transition (`WLDriver.run`).
+- **Batched walkers** — N walkers advanced through a shared `g` in one
+  stacked callback call per tick, never a Python loop over walkers
+  (`WLDriver.run_batched`). This is the path by which a GPU energy
+  backend (PyTorch, JAX) gets its speedup: one forward pass per tick,
+  not N sequential ones.
+- **Replica-exchange Wang-Landau** — W overlapping windows, one walker
+  each, with batched entropy-based exchange and a `join_g` step that
+  stitches the per-window `g` into a single curve (`RewlDriver`,
+  `make_windows`, `join_g`).
+- **Atomic checkpoint and bit-identical resume** (full RNG state
+  preserved) for the scalar and batched drivers.
+- **TSV trace writer** for offline diagnostics.
+- **Validated against Beale's exact `n(E)`** on the 2D Ising L=8 torus,
+  cross-checked against brute-force enumeration on L=3 and L=4; both the
+  single-walker and REWL validations run in CI.
 
 ### Planned
 
-See [docs/src/storyline.md](docs/src/storyline.md) for design rationale and
-line-count estimates.
+See [docs/src/storyline.md](docs/src/storyline.md) for design rationale.
 
-- **Batched walkers.** `BatchedCallbacks` + `WalkerBatch` so ≥2
-  walkers move through the system in one batched callable per tick.
-  This is the path by which a GPU energy backend (PyTorch, JAX) gets
-  its speedup — one stacked forward pass per tick, not N sequential
-  ones.
-- **Replica-exchange Wang-Landau.** A concrete `ExchangeHandler` on
-  top of the batched layer; the ABC and driver call site are already
-  wired so this is additive, not a rewrite.
 - **≥2D order parameters.** `BinND` as a sibling of `Bin1D`; the
   driver's `g` stays a flat 1D ndarray, only the binning changes.
 - **2D Ising in (E, M) Beale extension.** Exact reference for the
-  multi-D order-parameter and REWL validations.
+  multi-D order-parameter validation.
 
 ## Install
 
@@ -112,17 +117,34 @@ production Ising implementation used by the validation, and
 [examples/ising_validation.py](examples/ising_validation.py) for the
 full pass/fail run.
 
+## Documentation
+
+Full documentation lives in [docs/](docs/) as a Sphinx site: a getting-started
+guide, the API reference, the design storyline, and a **runnable example
+gallery** that walks the methods as tutorials — a toy first run, the exact
+Ising reference, single-walker Wang-Landau, then replica exchange. It is not
+yet hosted; build it locally with:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[docs]"
+tox -e docs        # writes docs/build/html
+```
+
+Then open `docs/build/html/index.html`.
+
 ## API surface
 
 | Symbol | Purpose |
 | --- | --- |
 | `Bin1D`, `BinScheme` | Map order-parameter values to flat bin indices. `BinScheme` is an ABC — implement `BinND` for higher dimensions. |
 | `WLConfig` | One-shot config: bin scheme, β, flatness threshold, n_check, ln_f targets, checkpoint path, trace path. |
-| `WLDriver` | The sampler. `.run(...)` returns a `WLResult`. |
+| `WLDriver` | The sampler. `.run(...)` runs one walker; `.run_batched(..., n_walkers=N)` runs N walkers through a shared `g`. Both return a `WLResult`. |
 | `WLResult` | g, H, visited mask, bin geometry, t_total, n_f_stages, ln_f_final, converged, final state, RNG state. |
-| `Walker` | Per-replica state container (state, bin_current, energy, RNG, counters). The driver loops over `Walker`s — single-walker today, multi-walker tomorrow. |
+| `Walker`, `WalkerBatch` | Per-walker state container. `Walker` holds one walker; `WalkerBatch` carries N walkers in stacked arrays for the batched and REWL paths. |
+| `BatchedEnergyFn`, `BatchedOrderParamFn`, `BatchedProposeMoveFn` | Type aliases for the stacked (N-at-once) callbacks consumed by `run_batched` and `RewlDriver`. |
+| `RewlDriver`, `ReplicaExchangeHandler`, `make_windows`, `join_g`, `RewlResult` | Replica-exchange WL: build overlapping windows, run one walker per window with batched exchange, then stitch the per-window `g` into one curve. |
 | `TraceWriter`, `TraceRow`, `read_trace` | TSV-backed per-check diagnostics (`t`, `ln_f`, flatness, acceptance rate, min/max/mean H, n_visited, 1/t-regime flag, stage index). Abstraction allows swapping to Parquet without changing callers. |
-| `ExchangeHandler` | Abstract hook for replica-exchange WL. Not implemented; the driver loop already has the call site so REWL plugs in additively. |
+| `ExchangeHandler`, `ExchangeResult` | Abstract hook for shared-`g` exchange inside `run_batched` (the `exchange_handler` argument); not yet wired. REWL itself ships as `RewlDriver` above. |
 | `save_checkpoint`, `load_checkpoint` | Atomic .npz checkpoints (`.tmp` + `os.replace`) preserving full RNG state. |
 
 ## Validation: 2D Ising
