@@ -50,6 +50,7 @@ from .core import (
     BatchedProposeMoveFn,
     WLConfig,
     _capture_rng,
+    _grouped_trial_step,
     attempt_halve,
     build_trace_row,
 )
@@ -200,45 +201,30 @@ def _rewl_trial_step(
 ) -> np.ndarray:
     """One WL trial for every window's walker at once. Returns the accept mask.
 
-    Same acceptance and reflecting-boundary conventions as the shared-``g``
-    batched step, but each walker reads/writes *its own* window's row of
-    ``g_windows`` and is confined to ``[b_lo, b_hi]`` (a proposal leaving the
-    window is rejected, like an out-of-range proposal).
+    A thin adapter over :func:`flatwalk.core._grouped_trial_step` (design:
+    ``design-unified-batched-step``): with one walker per window, the
+    walker→window map is ``group = arange(W)`` and each walker is confined to
+    its window's ``[b_lo, b_hi]``. Same acceptance and reflecting-boundary
+    conventions as the shared-``g`` batched step, but each walker reads/writes
+    *its own* window's row of ``g_windows`` (a proposal leaving the window is
+    rejected, like an out-of-range proposal).
     """
-    W = wb.n_walkers
-    widx = np.arange(W)
-    new_state, lpr = propose_move_fn(wb.state, wb.rng)
-    q_new = np.asarray(order_parameter_fn(new_state))
-    bin_new = bin_scheme.value_to_index_batched(q_new)  # global; -1 if off-grid
-    in_win = (bin_new >= b_lo) & (bin_new <= b_hi)  # also rejects the -1 sentinel
-
-    # β = 0 ⇒ the energy term drops out, so skip the (expensive, batched) call.
-    e_new = np.asarray(energy_fn(new_state), dtype=np.float64) if beta != 0.0 else wb.energy
-
-    safe_bin_new = np.where(in_win, bin_new, wb.bin_current)
-    delta = (
-        -beta * (e_new - wb.energy)
-        + g_windows[widx, wb.bin_current]
-        - g_windows[widx, safe_bin_new]
-        + np.asarray(lpr, dtype=np.float64)
+    group = np.arange(wb.n_walkers)
+    return _grouped_trial_step(
+        bin_scheme,
+        wb,
+        g_windows,
+        H_windows,
+        visited_windows,
+        group,
+        b_lo,
+        b_hi,
+        ln_f,
+        energy_fn,
+        order_parameter_fn,
+        propose_move_fn,
+        beta,
     )
-    u = wb.rng.random(W)
-    accept = in_win & ((delta >= 0.0) | (u < np.exp(np.minimum(delta, 0.0))))
-
-    if accept.any():
-        wb.state[accept] = new_state[accept]
-    wb.bin_current = np.where(accept, bin_new, wb.bin_current)
-    if beta != 0.0:
-        wb.energy = np.where(accept, e_new, wb.energy)
-
-    # One update per window per tick → (window, bin) pairs are unique, so plain
-    # fancy-indexed += is correct (no np.add.at needed).
-    g_windows[widx, wb.bin_current] += ln_f
-    H_windows[widx, wb.bin_current] += 1
-    visited_windows[widx, wb.bin_current] = True
-    wb.n_attempted += 1
-    wb.n_accepted += accept.astype(np.int64)
-    return accept
 
 
 # ---------------------------------------------------------------------------

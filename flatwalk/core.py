@@ -215,6 +215,82 @@ def build_trace_row(
 
 
 # ---------------------------------------------------------------------------
+# Batched trial step (shared by the shared-g and replica-exchange drivers)
+# ---------------------------------------------------------------------------
+
+
+def _grouped_trial_step(
+    bin_scheme: BinScheme,
+    wb: WalkerBatch,
+    g: np.ndarray,
+    H: np.ndarray,
+    visited: np.ndarray,
+    group: np.ndarray,
+    b_lo,
+    b_hi,
+    ln_f: float,
+    energy_fn: BatchedEnergyFn,
+    order_parameter_fn: BatchedOrderParamFn,
+    propose_move_fn: BatchedProposeMoveFn,
+    beta: float,
+) -> np.ndarray:
+    """One batched WL trial for all walkers at once. Returns the accept mask.
+
+    The single batched step both batched drivers call (design:
+    ``design-unified-batched-step``). It is parameterised over two arrays so
+    the shared-``g`` and per-window cases are the *same* code with different
+    index maps:
+
+    - ``g``, ``H``, ``visited`` have shape ``(G, B)``; ``group`` is an
+      ``int[N]`` mapping each of the ``N`` walkers to its row.
+    - ``b_lo``, ``b_hi`` are inclusive bin bounds (scalars or ``int[N]``)
+      confining each walker; a proposal landing outside ``[b_lo, b_hi]`` is
+      rejected. Full-grid bounds ``0 … B-1`` reproduce the plain in-range mask,
+      because :meth:`BinScheme.value_to_index_batched` returns ``-1`` off-grid.
+
+    Updates are scattered with ``np.add.at`` keyed on ``(group, bin)``, so
+    several walkers sharing a ``(group, bin)`` in one tick all count — this is
+    what makes ≥2 walkers per group correct. Mutates ``wb``, ``g``, ``H``, and
+    ``visited`` in place.
+    """
+    N = wb.n_walkers
+    new_state, log_proposal_ratio = propose_move_fn(wb.state, wb.rng)
+    q_new = np.asarray(order_parameter_fn(new_state))
+    bin_new = bin_scheme.value_to_index_batched(q_new)  # -1 where off-grid
+    in_bounds = (bin_new >= b_lo) & (bin_new <= b_hi)  # also rejects the -1 sentinel
+
+    # β = 0 ⇒ the energy term drops out, so skip the (expensive, batched) call.
+    e_new = np.asarray(energy_fn(new_state), dtype=np.float64) if beta != 0.0 else wb.energy
+
+    # Never index g with the -1 sentinel: out-of-bounds walkers compare the
+    # current bin against itself (Δ contribution 0) and are masked out below.
+    safe_bin_new = np.where(in_bounds, bin_new, wb.bin_current)
+    delta = (
+        -beta * (e_new - wb.energy)
+        + g[group, wb.bin_current]
+        - g[group, safe_bin_new]
+        + np.asarray(log_proposal_ratio, dtype=np.float64)
+    )
+    u = wb.rng.random(N)
+    accept = in_bounds & ((delta >= 0.0) | (u < np.exp(np.minimum(delta, 0.0))))
+
+    if accept.any():
+        wb.state[accept] = new_state[accept]
+    wb.bin_current = np.where(accept, bin_new, wb.bin_current)
+    if beta != 0.0:
+        wb.energy = np.where(accept, e_new, wb.energy)
+
+    # np.add.at is the safe scatter for the repeated (group, bin) indices that
+    # arise when several walkers share a group and land on the same bin.
+    np.add.at(g, (group, wb.bin_current), ln_f)
+    np.add.at(H, (group, wb.bin_current), 1)
+    visited[group, wb.bin_current] = True
+    wb.n_attempted += 1
+    wb.n_accepted += accept.astype(np.int64)
+    return accept
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -288,49 +364,29 @@ class WLDriver:
     ) -> np.ndarray:
         """Execute one trial for all N walkers at once. Returns the accept mask.
 
-        Mutates ``wb``, ``g``, ``H``, and ``visited`` in place. Six vectorised
-        ops, no ``for w in walkers`` (docs §4). Mirrors `_trial_step`'s
-        acceptance and reflecting-boundary conventions per walker.
+        Mutates ``wb``, ``g``, ``H``, and ``visited`` in place. A thin adapter
+        over :func:`_grouped_trial_step`: the shared-``g`` case is a single
+        group with full-grid bounds, and the driver's 1D ``g``/``H``/``visited``
+        are bridged to the primitive's ``(G, B)`` contract by a ``[None]`` view
+        (so the scatter writes straight back into the 1D buffers, and the result
+        and checkpoint stay 1D). Mirrors `_trial_step`'s acceptance and
+        reflecting-boundary conventions per walker.
         """
-        new_state, log_proposal_ratio = propose_move_fn(wb.state, wb.rng)
-        q_new = np.asarray(order_parameter_fn(new_state))
-        in_range = self.bin_scheme.in_range_batched(q_new)
-        bin_new = self.bin_scheme.value_to_index_batched(q_new)  # -1 where OOR
-
-        if beta != 0.0:
-            e_new = np.asarray(energy_fn(new_state), dtype=np.float64)
-        else:
-            # Energy term drops out; skip the (expensive, batched) energy call.
-            e_new = wb.energy
-
-        # Never index g with the -1 sentinel: out-of-range walkers compare the
-        # current bin against itself (Δ contribution 0) and are masked out below.
-        safe_bin_new = np.where(in_range, bin_new, wb.bin_current)
-        delta = (
-            -beta * (e_new - wb.energy)
-            + g[wb.bin_current]
-            - g[safe_bin_new]
-            + np.asarray(log_proposal_ratio, dtype=np.float64)
+        return _grouped_trial_step(
+            self.bin_scheme,
+            wb,
+            g[None],
+            H[None],
+            visited[None],
+            np.zeros(wb.n_walkers, dtype=np.intp),
+            0,
+            self.bin_scheme.n_bins - 1,
+            ln_f,
+            energy_fn,
+            order_parameter_fn,
+            propose_move_fn,
+            beta,
         )
-        u = wb.rng.random(wb.n_walkers)
-        # exp(min(0, Δ)) keeps the exponential ≤ 1 (no overflow); the Δ ≥ 0
-        # branch already accepts. Out-of-range proposals are rejected.
-        accept = in_range & ((delta >= 0.0) | (u < np.exp(np.minimum(delta, 0.0))))
-
-        if accept.any():
-            wb.state[accept] = new_state[accept]
-        wb.bin_current = np.where(accept, bin_new, wb.bin_current)
-        if beta != 0.0:
-            wb.energy = np.where(accept, e_new, wb.energy)
-
-        # Scatter the post-trial bins. np.add.at is the safe scatter for the
-        # repeated indices that arise when several walkers share a bin.
-        np.add.at(g, wb.bin_current, ln_f)
-        np.add.at(H, wb.bin_current, 1)
-        visited[wb.bin_current] = True
-        wb.n_attempted += 1
-        wb.n_accepted += accept.astype(np.int64)
-        return accept
 
     # ---- main loop ---------------------------------------------------------
 
