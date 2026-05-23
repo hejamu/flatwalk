@@ -63,3 +63,5 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B"]  # bugbear's loop-variable rules clash with parametrised tests
 "examples/*" = ["B"]
+"docs/examples/*" = ["B"]  # gallery recipe scripts, same relaxations as examples/
+"docs/tutorials/*" = ["B"]  # narrative gallery scripts

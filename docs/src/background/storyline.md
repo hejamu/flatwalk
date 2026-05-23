@@ -7,6 +7,19 @@ arbitrary order parameter `Q` by random-walking in `Q`-space with a
 bias refined on a flat-histogram schedule, converging to the true
 density.
 
+Why a *flat-histogram* library rather than a general Monte Carlo one? In plain
+MC the sampler is only a propagator — it advances the system through a *known*
+Boltzmann distribution, the way an integrator advances MD, and owns almost no
+state of its own. Flat-histogram methods invert this: the target is unknown and
+*learned as the run proceeds*, so the driver must own a real apparatus — the
+running `g(Q)`, the visit histogram, the flatness test, the f-stage schedule,
+the 1/t transition, convergence detection, and the checkpointing of all of it.
+That bookkeeping *is* the method, and it is what makes a dedicated, tested
+driver worth having where a generic move-and-accept loop would not be. The name
+marks the scope on purpose: `flatwalk` owns the flat-histogram machinery, and
+plain Metropolis falls out as the degenerate case where the bias is never
+updated.
+
 No existing Wang-Landau implementation is simultaneously **order-parameter
 agnostic** and **energy-backend agnostic**. Mature WL tools are tightly
 coupled to a particle-based state representation and a curated catalogue
