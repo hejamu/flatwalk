@@ -1,0 +1,128 @@
+"""
+5. Windows and gluing
+=====================
+
+More walkers (tutorial 4) cut the cost, but every walker still had to traverse
+the *entire* energy axis, and the steep tails stayed the slowest part for each of
+them. The next idea splits the axis instead: cut it into overlapping **windows**,
+confine one walker to each, and afterwards **glue** the per-window ``g`` back into
+one curve.
+
+This tutorial is only about that — windowing and gluing. Each window is an easy,
+short flat-histogram problem, they run independently (and in parallel), and the
+gluing reassembles ``g`` from their **overlaps alone**, with no communication
+between windows. We show it recovers the Ising ``g(E)`` exactly.
+
+(Confining walkers turns out to have a failure mode of its own; that — and its
+fix, replica exchange — is the :doc:`next tutorial <plot_6_replica_exchange>`.)
+The maths is in :doc:`/theory/08-replica-exchange`.
+"""
+
+# %%
+# Build the windows
+# -----------------
+#
+# :func:`~flatwalk.make_windows` tiles the energy grid into equal-width,
+# overlapping windows. We run one confined walker per window (no exchange — that
+# is the next tutorial), each building its own ``g`` over just its bins.
+
+import sys
+
+try:
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
+except NameError:
+    pass  # sphinx-gallery exec context: __file__ undefined, sys.path is already set
+
+import beale  # noqa: E402
+import ising  # noqa: E402
+import ising_batched  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+from flatwalk import Bin1D, RewlDriver, WLConfig, join_g, make_windows  # noqa: E402
+
+L = 8
+low, high, n_bins = ising.ising_energy_bins(L)
+scheme = Bin1D(low, high, n_bins)
+windows = make_windows(scheme, n_windows=4, overlap=8)
+for w, (lo, hi) in enumerate(windows):
+    print(f"window {w}: E ∈ [{lo:.0f}, {hi:.0f}]")
+
+cb = ising_batched.make_batched_ising_callbacks(L)
+log_g_exact = beale.log_g_E_array(L, beale.beale_g_E(L), scheme.centers)
+finite = np.isfinite(log_g_exact)
+
+rng = np.random.default_rng(0)
+init = ising_batched.initial_states_for_windows(L, windows, rng)
+res = RewlDriver(
+    WLConfig(bin_scheme=scheme, beta=0.0, n_check=2_000, ln_f_final=1e-4), windows
+).run(
+    initial_state=init,
+    energy_fn=cb["energy_fn"],
+    order_parameter_fn=cb["order_parameter_fn"],
+    propose_move_fn=cb["propose_move_fn"],
+    n_exchange=None,  # no exchange — windowing + gluing only
+    rng=rng,
+)
+
+# %%
+# The pieces, and the join
+# ------------------------
+#
+# Each window returns its own ``g_w``, correct in *shape* over its bins but with
+# its **own additive constant** — the driver only ever sees energy *differences*,
+# so a window has no idea how its curve sits relative to a neighbour's. Left
+# below: the four raw pieces, floating at unrelated heights. :func:`~flatwalk.join_g`
+# then slides each to match its neighbour over the shared overlap bins and
+# averages the overlaps into one curve. Right: the joined result on Beale.
+
+joined, vis = join_g(res.g_windows, res.visited_windows)
+val = vis & finite
+n_exact = np.exp(log_g_exact[val])
+n_wl = np.exp(joined[val] - joined[val].max())
+n_wl *= n_exact.sum() / n_wl.sum()
+eps = np.abs(n_wl - n_exact) / n_exact
+eps[0] = eps[-1] = 0.0
+print(f"joined max ε vs Beale = {eps.max():.3f}")
+assert eps.max() < 0.5
+
+fig, (axP, axJ) = plt.subplots(1, 2, figsize=(10, 4))
+
+for w in range(len(windows)):
+    vw = res.visited_windows[w] & finite
+    axP.plot(scheme.centers[vw], res.g_windows[w][vw], "o-", ms=3, label=f"window {w}")
+axP.set_xlabel("E")
+axP.set_ylabel("log g_w   (raw, own constant)")
+axP.set_title("The pieces: each window's own g")
+axP.legend(fontsize=8)
+axP.grid(alpha=0.3)
+
+E = scheme.centers[val]
+for lo, hi in windows:
+    axJ.axvspan(lo, hi, color="C1", alpha=0.12)
+axJ.plot(E, joined[val] - joined[val].min(), "o-", color="C0", label="joined")
+axJ.plot(E, log_g_exact[val] - log_g_exact[val].min(), "k--", lw=1.0, label="Beale exact")
+axJ.set_xlabel("E")
+axJ.set_ylabel("log g(E)   (shifted to min = 0)")
+axJ.set_title("The join: one curve, on Beale")
+axJ.legend()
+axJ.grid(alpha=0.3)
+
+fig.suptitle(f"L={L} Ising: windows glued from their overlaps")
+fig.tight_layout()
+plt.show()
+
+# %%
+# Four independent local walks, stitched at their overlaps, reproduce the whole
+# density of states — and they could have run on four cores at once. The
+# alignment came entirely from the overlaps; the windows never spoke to each
+# other while running.
+#
+# That independence is also windowing's weak spot. A confined walker can only ever
+# see configurations *within* its energy band, and if reaching some of them
+# requires briefly leaving the band, it never will — it gets stuck. Ising is
+# forgiving enough that this never bit us here. The :doc:`next tutorial
+# <plot_6_replica_exchange>` builds a system where it does, and fixes it with
+# replica exchange.

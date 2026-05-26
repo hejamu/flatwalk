@@ -8,7 +8,8 @@ periodically **exchanges** configurations between adjacent windows, and
 **joins** the per-window ``g`` into one curve over the overlaps.
 
 We run it on ``L=4`` against Beale's exact ``n(E)`` — the same target as the
-single-walker tutorial, now recovered window by window.
+single-walker recipe, now recovered window by window. The method is derived in
+:doc:`/theory/08-replica-exchange`.
 """
 
 # %%

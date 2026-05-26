@@ -1,4 +1,9 @@
-# flatwalk
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/src/_static/flatwalk-logo-dark.svg">
+    <img alt="flatwalk" src="docs/src/_static/flatwalk-logo-light.svg" width="260">
+  </picture>
+</p>
 
 [![CI](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml/badge.svg)](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -50,8 +55,8 @@ callbacks do all state manipulation.
 - **≥2D order parameters** (`BinND` alongside `Bin1D`).
 - **2D Ising in (E, M)** as the exact reference for the ≥2D validation.
 
-See [docs/src/storyline.md](docs/src/storyline.md) for the design rationale
-behind these.
+See [docs/src/background/storyline.md](docs/src/background/storyline.md) for the
+design rationale behind these.
 
 ## Install
 
@@ -154,8 +159,8 @@ The driver is validated end-to-end against the exact density of states
 `n(E)` for the 2D Ising model on an L×L periodic lattice, computed via a
 Beale-style transfer-matrix recursion. The full methodology, pass
 criteria, and the script-level tuning choices used to meet them are
-described in [docs/src/validation.md](docs/src/validation.md); the
-short version is:
+described in [docs/src/theory/10-validation.md](docs/src/theory/10-validation.md);
+the short version is:
 
 ```bash
 .venv/bin/python examples/ising_validation.py --seed 0
@@ -180,14 +185,14 @@ additive), the order parameter is vector-typed (so an `(E, M)` parameter needs
 no driver change), and per-walker state lives on `Walker`/`WalkerBatch` rather
 than on the driver. The full rationale, the batched-walker design, and the
 validation targets for the planned ≥2D / `(E, M)` work are in
-[docs/src/storyline.md](docs/src/storyline.md).
+[docs/src/background/storyline.md](docs/src/background/storyline.md).
 
 Both batched drivers share one trial step: `run_batched` (single shared `g`)
 and `RewlDriver` (one `g` per window) are thin adapters over the same
 primitive, parameterised by a walker→group map and per-walker bin bounds. That
 unification — and how it makes multiple walkers per window fall out — is
 written up in
-[docs/src/design-unified-batched-step.md](docs/src/design-unified-batched-step.md).
+[docs/src/background/design-unified-batched-step.md](docs/src/background/design-unified-batched-step.md).
 
 ## Layout
 
@@ -211,6 +216,86 @@ examples/             — user-side code that fills the contract
 docs/src/             — Sphinx docs source (guide, gallery, API, storyline)
 tox.ini               — tests / lint / format / docs / build envs
 ```
+
+## Related work and other Monte Carlo codes
+
+flatwalk is a deliberately small, NumPy-only Wang-Landau *driver*: it owns the
+flat-histogram bookkeeping and stays agnostic to what a configuration is and
+where its energy comes from (you supply callbacks — no particle model, no
+recompile). The codes below are mature and far broader; most are tied to a
+specific state representation or simulation engine. They are the right tools
+for production molecular and materials simulation, and useful references for
+the methods flatwalk implements.
+
+### Wang-Landau and flat-histogram
+
+- **[OWL](https://github.com/owl-suite/OWL)** — Open-source / Oak-Ridge
+  Wang-Landau. A C++ (MPI+X) suite for large-scale Wang-Landau and other
+  classical/parallel MC, with first-principles energies via Quantum ESPRESSO
+  or LSMS.
+- **[FEASST](https://pages.nist.gov/feasst/)** — NIST's Free Energy and
+  Advanced Sampling Simulation Toolkit. C++ with a Python module; Metropolis,
+  Wang-Landau, and transition-matrix MC across canonical, grand-canonical, and
+  Gibbs ensembles.
+- **[DL_MONTE](https://gitlab.com/dl_monte)** — a general-purpose molecular MC
+  code (CCP5 / Daresbury) with umbrella sampling, Wang-Landau, and
+  transition-matrix free-energy methods; the companion
+  [dlmontepython](https://gitlab.com/dl_monte/dlmontepython) adds automation,
+  histogram reweighting, and analysis.
+- **[icet / mchammer](https://icet.materialsmodeling.org)** — a Python
+  cluster-expansion toolkit whose `mchammer` Monte Carlo module provides a
+  `WangLandauEnsemble` alongside canonical, semi-grand-canonical, and VCSGC
+  ensembles.
+- **[SSAGES](https://github.com/SSAGESproject/SSAGES)** — an enhanced-sampling
+  suite for LAMMPS/GROMACS/OpenMD; its Basis Function Sampling is a continuous
+  Wang-Landau variant (the free energy as a projection onto orthogonal basis
+  functions).
+
+### Replica exchange / parallel tempering
+
+- **[openmmtools](https://github.com/choderalab/openmmtools)** — a
+  batteries-included toolkit on the GPU-accelerated OpenMM engine, with
+  multistate samplers (`ReplicaExchangeSampler`, `ParallelTemperingSampler`)
+  for temperature and Hamiltonian replica exchange.
+- Replica exchange is also standard in the major MD engines —
+  **[GROMACS](https://www.gromacs.org)**, **[LAMMPS](https://www.lammps.org)**,
+  **[OpenMM](https://openmm.org)** — and exposed through the CV plugins below.
+
+### Adaptive biasing on a collective variable (Wang-Landau's neighbours)
+
+Wang-Landau is adaptive biasing on an order parameter; these bias a collective
+variable instead, and are the molecular-dynamics-side analogues.
+
+- **[PLUMED](https://www.plumed.org)** — the de facto enhanced-sampling plugin
+  for MD engines: metadynamics, umbrella sampling, and many CV-based biases.
+- **[Colvars](https://colvars.github.io)** — a collective-variables library
+  embedded in NAMD, LAMMPS, GROMACS, VMD, and Tinker-HP; ABF, metadynamics,
+  and umbrella sampling on user-defined CVs.
+- **[PySAGES](https://github.com/SSAGESLabs/PySAGES)** — JAX-based, GPU/TPU
+  enhanced sampling (ABF, metadynamics, forward-flux, string method) coupling
+  to HOOMD-blue, LAMMPS, OpenMM, JAX-MD, and ASE.
+
+### General-purpose molecular and materials Monte Carlo
+
+- **[Cassandra](https://cassandra.nd.edu/)** — open-source atomistic MC
+  (Maginn group, Notre Dame) for fluids and phase equilibria across
+  NVT/NPT/μVT/Gibbs ensembles; a MoSDeF-Cassandra Python interface also exists.
+- **[RASPA](https://github.com/iRASPA/RASPA2)** — classical MC/MD for
+  adsorption and diffusion in nanoporous materials (zeolites, MOFs); GCMC and
+  Gibbs-ensemble.
+- **[MCCCS Towhee](https://towhee.sourceforge.net/)** — configurational-bias
+  MC for fluid phase equilibria in the Gibbs ensemble, with a large built-in
+  force-field library.
+- **[ALPS](http://alps.comp-phys.org/)** — Algorithms and Libraries for
+  Physics Simulations: classical and quantum MC for lattice models, including
+  extended-ensemble methods.
+
+### General-purpose statistical MCMC (a different problem)
+
+Bayesian-inference samplers like **[emcee](https://emcee.readthedocs.io)** and
+**[PyMC](https://www.pymc.io)** also "do Monte Carlo," but for sampling
+posterior distributions rather than estimating a density of states — noted only
+to head off the ambiguity.
 
 ## License
 

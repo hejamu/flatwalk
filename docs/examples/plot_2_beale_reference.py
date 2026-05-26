@@ -9,6 +9,9 @@ also enumerate every spin configuration directly and bin by energy.
 This example runs both on L=3 (512 configurations) and L=4 (65,536
 configurations) and checks bin-for-bin agreement, sanity-checking the
 recursion before we lean on it to validate the WL driver on L=8.
+
+This exact ``n(E)`` is the reference the Ising recipes below compare against;
+the validation argument it underpins is :doc:`/theory/10-validation`.
 """
 
 # %%

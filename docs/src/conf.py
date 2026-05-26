@@ -43,11 +43,15 @@ extensions = [
 # -- Sphinx Gallery ---------------------------------------------------------
 
 sphinx_gallery_conf = {
-    # Sources: runnable examples live in docs/examples/ at the repo root
-    # (next to docs/src/, separate from the project's examples/ directory
-    # which holds the CLI scripts).
-    "examples_dirs": str(ROOT / "docs" / "examples"),
-    "gallery_dirs": "auto_examples",  # written below docs/src/
+    # Two galleries, both with sources next to docs/src/ (separate from the
+    # project's examples/ directory, which holds the CLI/validation scripts):
+    #   docs/examples/  -> auto_examples/   recipes (write-your-own-contract)
+    #   docs/tutorials/ -> auto_tutorials/  a narrative journey on one system
+    "examples_dirs": [
+        str(ROOT / "docs" / "examples"),
+        str(ROOT / "docs" / "tutorials"),
+    ],
+    "gallery_dirs": ["auto_examples", "auto_tutorials"],  # written below docs/src/
     "filename_pattern": r"plot_",
     # The examples form a tutorial sequence; order by filename (the numeric
     # plot_N_ prefixes) rather than the default code-length sort. The string
@@ -55,6 +59,9 @@ sphinx_gallery_conf = {
     "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
     "doc_module": ("flatwalk",),
+    # Generate per-object backreference stubs so the API page can surface, via
+    # `.. minigallery::`, which examples/tutorials exercise each flatwalk object.
+    "backreferences_dir": "gen_modules/backreferences",
     "reference_url": {"flatwalk": None},
     "default_thumb_file": None,
     "abort_on_example_error": True,
@@ -75,12 +82,15 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
 }
 
-# MyST (markdown) extensions.
+# MyST (markdown) extensions. dollarmath + amsmath let the math-heavy theory
+# pages use $…$ / $$…$$, rendered by the mathjax extension above.
 myst_enable_extensions = [
     "deflist",
     "fieldlist",
     "smartquotes",
     "tasklist",
+    "dollarmath",
+    "amsmath",
 ]
 myst_heading_anchors = 3
 
@@ -108,7 +118,10 @@ napoleon_use_ivar = True
 html_theme = "furo"
 html_title = f"flatwalk {version}"
 html_static_path = ["_static"]
+html_favicon = "_static/flatwalk-favicon.svg"
 html_theme_options = {
     "navigation_with_keys": True,
     "sidebar_hide_name": False,
+    "light_logo": "flatwalk-logo-light.svg",
+    "dark_logo": "flatwalk-logo-dark.svg",
 }

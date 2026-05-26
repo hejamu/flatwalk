@@ -8,6 +8,9 @@ previous example. This is the smoke version of the spec §4.4 validation —
 the same pipeline as the full ``L=8`` runner at
 ``examples/ising_validation.py``, shrunk to ``L=4`` and a loose
 ``ln_f_final`` so it finishes in seconds.
+
+The maths is in :doc:`/theory/05-wang-landau`; for the story of *why* you reach
+for this over plain Monte Carlo, see the :doc:`tutorials </auto_tutorials/index>`.
 """
 
 # %%
@@ -141,15 +144,10 @@ plt.show()
 # Reaching the strict criteria
 # ----------------------------
 #
-# This smoke run is single-seed at ``ln_f_final = 1e-5`` and only needs to
-# look right. The full ``L=8`` runner that meets spec §4.4 (``max ε < 0.05``,
-# ``mean ε < 0.01``) adds two things, both *outside* the driver:
-#
-# * **Tuned hyperparameters** ``n_check = 1000``, ``flatness_threshold =
-#   0.95`` (the spec marks both as tunable). A smaller ``n_check`` enters the
-#   1/t regime sooner; a stricter flatness gives each f-stage more samples.
-# * **Multi-seed averaging** (``--n-seeds 3``). A single-walker run leaves
-#   a few-percent ``E ↔ −E`` asymmetry in the tails — the walker reaches one
-#   tail first and accumulates more large-``ln_f`` updates there. Averaging
-#   ``log g`` over independent seeds cuts the variance by ``~1/K``.
-#   Replica-exchange (next example) is the more elegant fix.
+# This smoke run is single-seed at ``ln_f_final = 1e-5`` and only needs to look
+# right. Closing the gap to the spec criteria (``max ε < 0.05``,
+# ``mean ε < 0.01`` on ``L=8``) is the subject of the tutorials, which show the
+# error floor of standard halving and switch to the
+# :doc:`1/t schedule </theory/06-one-over-t>`, then cut the residual
+# ``E ↔ −E`` tail asymmetry with :doc:`more walkers </theory/07-multiple-walkers>`
+# and :doc:`replica exchange </theory/08-replica-exchange>` (the next recipes).
