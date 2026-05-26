@@ -43,13 +43,6 @@ consult the :doc:`theory <theory/index>` for the why behind each method.
 
    api
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Background
-
-   background/storyline
-   background/design-unified-batched-step
-
 
 Indices
 -------

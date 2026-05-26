@@ -201,13 +201,12 @@ def _rewl_trial_step(
 ) -> np.ndarray:
     """One WL trial for every window's walker at once. Returns the accept mask.
 
-    A thin adapter over :func:`flatwalk.core._grouped_trial_step` (design:
-    ``design-unified-batched-step``): with one walker per window, the
-    walker→window map is ``group = arange(W)`` and each walker is confined to
-    its window's ``[b_lo, b_hi]``. Same acceptance and reflecting-boundary
-    conventions as the shared-``g`` batched step, but each walker reads/writes
-    *its own* window's row of ``g_windows`` (a proposal leaving the window is
-    rejected, like an out-of-range proposal).
+    A thin adapter over :func:`flatwalk.core._grouped_trial_step`: with one
+    walker per window, the walker→window map is ``group = arange(W)`` and each
+    walker is confined to its window's ``[b_lo, b_hi]``. Same acceptance and
+    reflecting-boundary conventions as the shared-``g`` batched step, but each
+    walker reads/writes *its own* window's row of ``g_windows`` (a proposal
+    leaving the window is rejected, like an out-of-range proposal).
     """
     group = np.arange(wb.n_walkers)
     return _grouped_trial_step(

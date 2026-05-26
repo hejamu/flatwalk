@@ -7,7 +7,7 @@
 
 [![CI](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml/badge.svg)](https://github.com/hejamu/flatwalk/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
 flatwalk is an enhanced sampling library implementing flat-histogram
 methods while being order-parameter and energy-backend agnostic.
@@ -54,9 +54,6 @@ callbacks do all state manipulation.
   exchange in `RewlDriver`.
 - **≥2D order parameters** (`BinND` alongside `Bin1D`).
 - **2D Ising in (E, M)** as the exact reference for the ≥2D validation.
-
-See [docs/src/background/storyline.md](docs/src/background/storyline.md) for the
-design rationale behind these.
 
 ## Install
 
@@ -126,10 +123,10 @@ full pass/fail run.
 ## Documentation
 
 Full documentation lives in [docs/](docs/) as a Sphinx site: a getting-started
-guide, the API reference, the design storyline, and a **runnable example
-gallery** that walks the methods as tutorials — a toy first run, the exact
-Ising reference, single-walker Wang-Landau, then replica exchange. It is not
-yet hosted; build it locally with:
+guide, the API reference, and a **runnable example gallery** that walks the
+methods as tutorials — a toy first run, the exact Ising reference, single-walker
+Wang-Landau, then replica exchange. It is not yet hosted; build it locally
+with:
 
 ```bash
 uv pip install --python .venv/bin/python -e ".[docs]"
@@ -183,16 +180,12 @@ flatwalk is deliberately built so the unbuilt pieces drop in without rewriting
 the core: bin indexing is behind the `BinScheme` ABC (so a future `BinND` is
 additive), the order parameter is vector-typed (so an `(E, M)` parameter needs
 no driver change), and per-walker state lives on `Walker`/`WalkerBatch` rather
-than on the driver. The full rationale, the batched-walker design, and the
-validation targets for the planned ≥2D / `(E, M)` work are in
-[docs/src/background/storyline.md](docs/src/background/storyline.md).
+than on the driver.
 
 Both batched drivers share one trial step: `run_batched` (single shared `g`)
 and `RewlDriver` (one `g` per window) are thin adapters over the same
 primitive, parameterised by a walker→group map and per-walker bin bounds. That
-unification — and how it makes multiple walkers per window fall out — is
-written up in
-[docs/src/background/design-unified-batched-step.md](docs/src/background/design-unified-batched-step.md).
+unification is what makes multiple walkers per window fall out cleanly.
 
 ## Layout
 
@@ -213,7 +206,7 @@ examples/             — user-side code that fills the contract
   ising_validation.py   Single-walker end-to-end pass/fail run
   ising_rewl_validation.py  Replica-exchange end-to-end pass/fail run
   cache/                Beale results cached as TSV (created on first run)
-docs/src/             — Sphinx docs source (guide, gallery, API, storyline)
+docs/src/             — Sphinx docs source (guide, gallery, API)
 tox.ini               — tests / lint / format / docs / build envs
 ```
 

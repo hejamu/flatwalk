@@ -16,8 +16,8 @@ sys.path.insert(0, str(ROOT / "examples"))
 # -- Project information ----------------------------------------------------
 
 project = "flatwalk"
-author = "Henrik Jaeger"
-copyright = "2026, Henrik Jaeger"
+author = "Henrik Stooß"
+copyright = "2026, Henrik Stooß"
 
 try:
     release = importlib.metadata.version("flatwalk")

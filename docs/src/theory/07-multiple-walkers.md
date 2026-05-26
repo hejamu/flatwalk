@@ -66,10 +66,7 @@ accept, scatter — with no per-walker Python.
 {meth}`~flatwalk.WLDriver.run_batched` counts `t_total` in individual moves
 ($N$ per tick), so `n_check`, `ln_f_final`, and the {doc}`1/t schedule
 <06-one-over-t>` use the same units as the scalar {meth}`~flatwalk.WLDriver.run`;
-with $N = 1$ the batched path reduces to the scalar schedule exactly. The
-architectural rationale is written up in the {doc}`storyline
-</background/storyline>` and the {doc}`unified-step design note
-</background/design-unified-batched-step>`.
+with $N = 1$ the batched path reduces to the scalar schedule exactly.
 
 ```{seealso}
 **See it run:** {doc}`Tutorial 4 </auto_tutorials/plot_4_more_walkers>` and the

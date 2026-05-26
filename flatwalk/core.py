@@ -236,10 +236,9 @@ def _grouped_trial_step(
 ) -> np.ndarray:
     """One batched WL trial for all walkers at once. Returns the accept mask.
 
-    The single batched step both batched drivers call (design:
-    ``design-unified-batched-step``). It is parameterised over two arrays so
-    the shared-``g`` and per-window cases are the *same* code with different
-    index maps:
+    The single batched step both batched drivers call. It is parameterised over
+    two arrays so the shared-``g`` and per-window cases are the *same* code
+    with different index maps:
 
     - ``g``, ``H``, ``visited`` have shape ``(G, B)``; ``group`` is an
       ``int[N]`` mapping each of the ``N`` walkers to its row.

@@ -7,7 +7,7 @@ name = "flatwalk"
 version = "0.1.0"
 description = "Wang-Landau (flat-histogram) sampling driver with forward-compatible architecture for higher-D order parameters and replica exchange."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Henrik Stooß" }]
 license = { text = "MIT" }
 dependencies = [
@@ -44,7 +44,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 92
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Default rule set (pyflakes + pycodestyle errors) plus a few imports/style:

@@ -5,7 +5,7 @@
 The capability described here is on the roadmap, not in the current release.
 flatwalk today samples a one-dimensional order parameter via
 {class}`~flatwalk.Bin1D`. This chapter records *why* the extension is
-straightforward; the {doc}`storyline </background/storyline>` tracks its status.
+straightforward.
 ```
 
 ## Joint densities of states
@@ -52,6 +52,5 @@ model in $(E, M)$ would be the exact reference for a $\ge 2$-D run, mirroring th
 1-D validation in the {doc}`next chapter <10-validation>`.
 
 ```{seealso}
-**Roadmap and effort:** {doc}`storyline </background/storyline>` §6.
 **Next:** {doc}`10-validation`.
 ```
