@@ -1,0 +1,60 @@
+name: Documentation
+
+on:
+  push:
+    branches: [master]
+    tags: ["*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install tox
+        run: python -m pip install --upgrade pip tox
+
+      - name: Build documentation
+        run: tox -e docs
+
+      - name: Stage built site for gh-pages
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git clone --branch gh-pages "https://github.com/${GITHUB_REPOSITORY}" gh-pages 2>/dev/null || mkdir gh-pages
+          rm -rf gh-pages/.git
+
+          REF_KIND=$(echo "$GITHUB_REF" | cut -d / -f2)
+          if [[ "$REF_KIND" == "tags" ]]; then
+            DOC_KIND="stable"
+          else
+            DOC_KIND="latest"
+          fi
+
+          rm -rf "gh-pages/${DOC_KIND}"
+          mv docs/build/html "gh-pages/${DOC_KIND}"
+
+          # Root redirect so the bare Pages URL lands on latest/.
+          cat > gh-pages/index.html <<'HTML'
+          <!doctype html>
+          <meta http-equiv="refresh" content="0; url=latest/">
+          <title>flatwalk</title>
+          <p>Redirecting to <a href="latest/">latest/</a>.</p>
+          HTML
+
+      - name: Deploy to gh-pages
+        if: github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages/
+          force_orphan: true

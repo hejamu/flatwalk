@@ -42,26 +42,6 @@ jobs:
       - name: Run lint env
         run: tox -e lint
 
-  docs:
-    name: docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-      - name: Install tox
-        run: python -m pip install --upgrade pip tox
-      - name: Build documentation
-        run: tox -e docs
-
-      - name: Upload built site as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: html-docs
-          path: docs/build/html
-
   ising-validation:
     name: Ising L=8 validation (slow)
     runs-on: ubuntu-latest
