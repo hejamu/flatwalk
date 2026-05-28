@@ -57,15 +57,13 @@ callbacks do all state manipulation.
 
 ## Install
 
-Editable install via [uv](https://github.com/astral-sh/uv):
-
 ```bash
-uv venv .venv
-uv pip install --python .venv/bin/python -e ".[test]"
+pip install flatwalk
 ```
 
-Plain pip works too (`pip install -e ".[test]"`) but Homebrew Python may
-require `--break-system-packages` or a venv.
+To run the test suite or build the docs, pull in the matching extras
+(`flatwalk[test]`, `flatwalk[docs]`). For an editable install from a clone, see
+[the install page](https://flatwalk.readthedocs.io/en/latest/intro/install.html).
 
 ## Quick start
 
@@ -122,33 +120,21 @@ full pass/fail run.
 
 ## Documentation
 
-Full documentation lives in [docs/](docs/) as a Sphinx site: a getting-started
-guide, the API reference, and a **runnable example gallery** that walks the
-methods as tutorials — a toy first run, the exact Ising reference, single-walker
-Wang-Landau, then replica exchange. It is not yet hosted; build it locally
-with:
+Hosted at <https://hejamu.github.io/flatwalk/latest/> (GitHub Pages) and
+<https://flatwalk.readthedocs.io/> (Read the Docs), both built from
+[`docs/`](docs/) on every push to `master`. The site has a getting-started
+guide, the API reference, theory chapters, and a **runnable example gallery**
+that walks the methods as tutorials — a toy first run, the exact Ising
+reference, single-walker Wang-Landau, then replica exchange.
+
+To build it locally:
 
 ```bash
-uv pip install --python .venv/bin/python -e ".[docs]"
+pip install -e ".[docs]"
 tox -e docs        # writes docs/build/html
 ```
 
 Then open `docs/build/html/index.html`.
-
-## API surface
-
-| Symbol | Purpose |
-| --- | --- |
-| `Bin1D`, `BinScheme` | Map order-parameter values to flat bin indices. `BinScheme` is an ABC — implement `BinND` for higher dimensions. |
-| `WLConfig` | One-shot config: bin scheme, β, flatness threshold, n_check, ln_f targets, checkpoint path, trace path. |
-| `WLDriver` | The sampler. `.run(...)` runs one walker; `.run_batched(..., n_walkers=N)` runs N walkers through a shared `g`. Both return a `WLResult`. |
-| `WLResult` | g, H, visited mask, bin geometry, t_total, n_f_stages, ln_f_final, converged, final state, RNG state. |
-| `Walker`, `WalkerBatch` | Per-walker state container. `Walker` holds one walker; `WalkerBatch` carries N walkers in stacked arrays for the batched and REWL paths. |
-| `BatchedEnergyFn`, `BatchedOrderParamFn`, `BatchedProposeMoveFn` | Type aliases for the stacked (N-at-once) callbacks consumed by `run_batched` and `RewlDriver`. |
-| `RewlDriver`, `ReplicaExchangeHandler`, `make_windows`, `join_g`, `RewlResult` | Replica-exchange WL: build overlapping windows, run one walker per window with batched exchange, then stitch the per-window `g` into one curve. |
-| `TraceWriter`, `TraceRow`, `read_trace` | TSV-backed per-check diagnostics (`t`, `ln_f`, flatness, acceptance rate, min/max/mean H, n_visited, 1/t-regime flag, stage index). Abstraction allows swapping to Parquet without changing callers. |
-| `ExchangeHandler`, `ExchangeResult` | Abstract hook for shared-`g` exchange inside `run_batched` (the `exchange_handler` argument); not yet wired. REWL itself ships as `RewlDriver` above. |
-| `save_checkpoint`, `load_checkpoint` | Atomic .npz checkpoints (`.tmp` + `os.replace`) preserving full RNG state. |
 
 ## Validation: 2D Ising
 
@@ -165,7 +151,7 @@ the short version is:
 
 Runs 3 independent seeds to `ln_f_final = 1e-8`, averages the per-seed
 `log g`, compares to Beale's exact `n(E)`, and exits 0 only if all four
-all four validation criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
+validation criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
 within 0.5%, `C_V` peak temperature within 2%). The slow lane of CI
 runs this on every push.
 
@@ -173,19 +159,6 @@ The replica-exchange path has its own end-to-end check,
 [examples/ising_rewl_validation.py](examples/ising_rewl_validation.py): L=8
 with overlapping windows on E, exchanged periodically, with the joined `g(E)`
 held to the same criteria. It runs in the same slow CI lane.
-
-## Design and roadmap
-
-flatwalk is deliberately built so the unbuilt pieces drop in without rewriting
-the core: bin indexing is behind the `BinScheme` ABC (so a future `BinND` is
-additive), the order parameter is vector-typed (so an `(E, M)` parameter needs
-no driver change), and per-walker state lives on `Walker`/`WalkerBatch` rather
-than on the driver.
-
-Both batched drivers share one trial step: `run_batched` (single shared `g`)
-and `RewlDriver` (one `g` per window) are thin adapters over the same
-primitive, parameterised by a walker→group map and per-walker bin bounds. That
-unification is what makes multiple walkers per window fall out cleanly.
 
 ## Layout
 

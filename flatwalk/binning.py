@@ -5,8 +5,8 @@ for 1D order parameters now and ≥2D extensions later. Concrete subclasses must
 map an order-parameter value to a flat integer index, report dimensionality,
 and expose bin edges/centers.
 
-Only ``Bin1D`` is implemented in M1. A future ``BinND`` slots in by
-implementing the same ABC.
+Only ``Bin1D`` ships today. A future ``BinND`` slots in by implementing
+the same ABC.
 """
 
 from __future__ import annotations

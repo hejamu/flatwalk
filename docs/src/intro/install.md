@@ -1,24 +1,31 @@
 # Install
 
-flatwalk is not yet published on PyPI, so install it from the repository.
+flatwalk is on PyPI:
+
+```bash
+pip install flatwalk
+```
+
+## With extras
+
+The base install carries only what the driver itself needs (NumPy). Pull in
+optional extras when you want the test suite or the docs build:
+
+```bash
+pip install "flatwalk[test]"   # runtime + pytest
+pip install "flatwalk[docs]"   # runtime + Sphinx, theme, gallery
+```
 
 ## From the repository
 
-Clone the repository and install it in editable mode. The `test` extra pulls in
-the dependencies needed to run the test suite:
+To work on the source, clone the repository and install in editable mode. An
+editable (`-e`) install points at the working tree, so edits to the source take
+effect without reinstalling:
 
 ```bash
 git clone https://github.com/hejamu/flatwalk.git
 cd flatwalk
 pip install -e ".[test]"
-```
-
-An editable (`-e`) install points at the working tree, so edits to the source
-take effect without reinstalling. To install a pinned version without keeping a
-clone around, point pip straight at the repository instead:
-
-```bash
-pip install "flatwalk[test] @ git+https://github.com/hejamu/flatwalk.git"
 ```
 
 On a Homebrew Python you may need a virtual environment (or, less cleanly,

@@ -33,9 +33,9 @@ $E = \pm 2L^2$ bins are excluded — there $n = 2$ and relative noise dominates)
 | `C_V(T)` peak-temperature error | < 2% |
 
 The full $\ln f_{\text{final}} = 10^{-8}$, $L=8$ runs that meet these criteria
-are too slow for a docs build (~15 min single-walker; longer for REWL). They live
-at the repo root — [`examples/ising_validation.py`](../../../examples/ising_validation.py)
-and [`examples/ising_rewl_validation.py`](../../../examples/ising_rewl_validation.py) —
+are too slow for a docs build. They live at the repo root —
+[`examples/ising_validation.py`](../../../examples/ising_validation.py) and
+[`examples/ising_rewl_validation.py`](../../../examples/ising_rewl_validation.py) —
 and run in CI's slow lane. The galleries below run fast smoke versions of the
 same pipelines on every build, with loosened bounds.
 
