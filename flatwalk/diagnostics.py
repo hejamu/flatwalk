@@ -5,7 +5,7 @@ WL run can be diagnosed after the fact: when ``ln_f`` dropped, where the
 acceptance rate sat, which bins were underexplored, when the 1/t regime
 kicked in.
 
-TSV is the M1–M3 backing format (zero new deps, greppable, tail-able during
+TSV is the current backing format (zero new deps, greppable, tail-able during
 a live run). The ``TraceWriter`` class hides this so a future Parquet
 backend slots in without changing callers.
 """

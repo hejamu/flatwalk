@@ -4,8 +4,8 @@ Layers mirror `test_core.py`:
 
 1. `WalkerBatch` container mechanics.
 2. `WLDriver._trial_step_batched` verified bit-for-bit against the scalar
-   `_trial_step` on identical inputs (the spec's "batched primitives are
-   themselves verified" check, docs §5).
+   `_trial_step` on identical inputs ("batched primitives are themselves
+   verified").
 3. End-to-end `run_batched`: flat-`g` recovery on a uniform-DOS walk,
    out-of-range convention, reproducibility, and bit-identical resume.
 

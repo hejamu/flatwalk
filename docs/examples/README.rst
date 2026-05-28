@@ -8,7 +8,7 @@ tutorial or theory that explains the method, then stay terse.
 
 These are fast smoke versions (small ``L``, loose ``ln_f_final``) executed live
 on every documentation build. The full ``ln_f_final = 1e-8`` ``L=8`` runs that
-meet the spec pass criteria live at the repo root
+meet the strict pass criteria live at the repo root
 (``examples/ising_validation.py``, ``examples/ising_rewl_validation.py``) and
 run in CI's slow lane.
 

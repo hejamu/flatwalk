@@ -1,8 +1,8 @@
 """Checkpoint/restart tests.
 
-The spec demands bit-identical resume: a run interrupted mid-way then
-resumed from disk must produce the *exact same* ``g`` and ``H`` arrays as
-a run that was never interrupted (same RNG seed). This is the canonical
+Checkpointing must give bit-identical resume: a run interrupted mid-way
+then resumed from disk must produce the *exact same* ``g`` and ``H`` arrays
+as a run that was never interrupted (same RNG seed). This is the canonical
 correctness property of the I/O layer.
 """
 

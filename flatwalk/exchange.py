@@ -1,13 +1,13 @@
 """Exchange handler interface — empty hook point for replica-exchange WL (REWL).
 
-The single-walker M1/M2/M3 driver never instantiates anything from this
-module. It exists so that a future REWL implementation can plug into the
-core loop *without* touching the loop: the driver only knows how to call
+The single-walker driver never instantiates anything from this module. It
+exists so that a shared-``g`` REWL variant can plug into the core loop
+*without* touching the loop: the driver only knows how to call
 ``handler.maybe_exchange(...)`` every ``N_exchange`` trials.
 
-REWL validation target (when implemented): L=8 Ising with 4 overlapping
-windows on E; joined ``g(E)`` should match the single-window result within
-statistical noise. See spec §5.
+The shipped REWL path (per-window ``g``) does not use this hook — see
+:class:`flatwalk.RewlDriver`. This module is kept for the shared-``g`` REWL
+variant when it is wired up.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class ExchangeResult:
 
 
 class ExchangeHandler(ABC):
-    """Abstract REWL exchange handler. Not implemented in M1–M3."""
+    """Abstract REWL exchange handler. Not wired up in the current release."""
 
     @property
     @abstractmethod

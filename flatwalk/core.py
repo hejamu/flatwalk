@@ -13,8 +13,8 @@ Architectural notes
   presumes 1D.
 - An optional ``exchange_handler`` slot is present in the loop so REWL
   drops in without touching this file.
-- Out-of-range proposals (spec §1.3): rejected. ``g`` and ``H`` are still
-  updated at the *current* bin (reflecting-boundary convention).
+- Out-of-range proposals: rejected. ``g`` and ``H`` are still updated at the
+  *current* bin (reflecting-boundary convention).
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ EnergyFn = Callable[[Any], float]
 OrderParamFn = Callable[[Any], float | np.ndarray]
 ProposeMoveFn = Callable[[Any, np.random.Generator], tuple[Any, float]]
 
-# Batched callbacks for ≥2 walkers (docs §4). Each takes one opaque
+# Batched callbacks for ≥2 walkers. Each takes one opaque
 # ``state_batch`` carrying N walkers and operates on all N at once — one
 # stacked call per tick, never a Python loop over walkers. ``state_batch`` is
 # opaque to the driver exactly as scalar ``state`` is; the driver only ever
@@ -135,7 +135,7 @@ class WLResult:
 def compute_flatness(H: np.ndarray, visited: np.ndarray) -> float:
     """Return ``min(H[visited]) / mean(H[visited])``, or 0.0 if degenerate.
 
-    "Visited" is the cumulative mask (any bin ever entered), per spec §1.5.
+    "Visited" is the cumulative mask (any bin ever entered).
     The ratio is over **visited bins only**, which matters during early
     exploration when many bins still have ``H = 0``.
     """
@@ -336,9 +336,9 @@ class WLDriver:
                 walker.bin_current = bin_new
                 walker.energy = e_new
                 accepted = True
-        # Out-of-range proposals fall through unchanged (spec §1.3).
+        # Out-of-range proposals fall through unchanged.
         # g/H/visited update happens at the *current* bin, whether accepted
-        # or not, after the decision (spec §1.1 step 5).
+        # or not, after the decision.
         g[walker.bin_current] += ln_f
         H[walker.bin_current] += 1
         visited[walker.bin_current] = True
@@ -682,7 +682,7 @@ class WLDriver:
         resume_from: Path | None = None,
         exchange_handler: ExchangeHandler | None = None,
     ) -> WLResult:
-        """Run N walkers through a shared ``g`` as one batch (docs §4).
+        """Run N walkers through a shared ``g`` as one batch.
 
         The N walkers advance together: each tick is one stacked call to each
         batched callback, never a Python loop over walkers. All N contribute to
@@ -700,8 +700,9 @@ class WLDriver:
         ``max_trials / N`` ticks (i.e. batched backend calls), each walker
         contributing roughly ``max_trials / N`` moves.
 
-        Replica exchange (per-window ``g``) is docs §5 and not wired here yet;
-        passing ``exchange_handler`` raises ``NotImplementedError``.
+        Replica exchange (per-window ``g``) is not wired into ``run_batched``;
+        use :class:`flatwalk.RewlDriver` for that. Passing ``exchange_handler``
+        here raises ``NotImplementedError``.
         """
         from .io import (  # local to avoid cycle
             load_checkpoint_batched,
@@ -710,8 +711,8 @@ class WLDriver:
 
         if exchange_handler is not None:
             raise NotImplementedError(
-                "batched replica exchange is not implemented yet (docs §5); "
-                "run_batched currently supports a single shared-g window."
+                "batched replica exchange is not wired into run_batched; "
+                "use flatwalk.RewlDriver for replica-exchange runs."
             )
         if n_walkers < 1:
             raise ValueError(f"n_walkers must be ≥ 1; got {n_walkers}")

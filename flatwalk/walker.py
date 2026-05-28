@@ -62,7 +62,7 @@ class Walker:
 class WalkerBatch:
     """State for N walkers carried in flat arrays (the N-walker `Walker`).
 
-    The design rule (docs §4): for ≥2 walkers the per-tick primitives act on
+    The design rule: for ≥2 walkers the per-tick primitives act on
     all N states at once. There is deliberately no Python-side list of
     `Walker` to iterate — one `WalkerBatch` holds N walkers' worth of state in
     parallel arrays, and a single shared ``rng`` provides vectorized draws.
@@ -80,7 +80,7 @@ class WalkerBatch:
     energy:
         ``ndarray[N]`` float — cached energy per walker. Left untouched when
         ``beta == 0`` (the energy term drops out of acceptance and the batched
-        energy call is skipped, per docs §4).
+        energy call is skipped).
     rng:
         One shared `numpy.random.Generator`. A fixed master seed reproduces a
         batched run exactly.

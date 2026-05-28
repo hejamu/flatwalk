@@ -44,8 +44,8 @@ def make_ising_callbacks(L: int, J: float = 1.0) -> dict[str, Callable]:
     """Return WL-compatible callbacks for the L×L Ising on torus.
 
     All callbacks act on a ``state = (spins, cached_E)`` tuple. The move
-    proposal is single-spin-flip (spec §4.2): pick one site uniformly,
-    propose σ_i → −σ_i, with ``log_proposal_ratio = 0``.
+    proposal is single-spin-flip: pick one site uniformly, propose
+    σ_i → −σ_i, with ``log_proposal_ratio = 0``.
     """
 
     def energy_fn(state) -> float:

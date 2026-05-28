@@ -1,7 +1,7 @@
 """End-to-end Wang-Landau validation on the 2D Ising model (L=8 by default).
 
-Pass criteria (spec §4.4)
--------------------------
+Pass criteria
+-------------
 - ``max ε(E) < 0.05`` over visited central bins (excluding the two extreme
   bins ``E = ±2L²``).
 - ``mean ε(E) < 0.01`` over the same bins.
@@ -12,16 +12,15 @@ The exact reference comes from `beale.beale_g_E(L)` (transfer-matrix + CRT
 recursion); see `tests/test_beale.py` for the L=3/L=4 cross-validation
 against brute-force enumeration.
 
-Divergences from the spec literal
----------------------------------
-- ``n_check`` and ``flatness_threshold`` are tuned (defaults 1000 / 0.95
-  here vs. spec §1.5 defaults 10_000 / 0.8). The spec marks both as
-  "Tunable" so this is within bounds.
+Tuning choices
+--------------
+- ``n_check`` and ``flatness_threshold`` are tightened (defaults 1000 / 0.95
+  here vs. the common 10_000 / 0.8) to enter the 1/t regime earlier.
 - The default run averages ``--n-seeds`` independent WL runs (default 3)
   and computes the comparison on the averaged ``log g``. A single seed
-  produces ~10% max ε on L=8 single-walker, well above spec; the
+  produces ~10% max ε on L=8 single-walker, well above the threshold; the
   literature routine fix is multi-seed (or REWL — see
-  ``flatwalk.exchange``). ``--n-seeds 1`` recovers the pure spec reading.
+  ``flatwalk.exchange``). ``--n-seeds 1`` recovers the single-seed reading.
 
 Usage
 -----
@@ -31,7 +30,7 @@ Usage
                                         [--quick]
 
 ``--quick`` runs to ln_f_final=1e-5 instead of 1e-8 (~30 s) for smoke
-testing the pipeline; the resulting g_WL will NOT meet the spec pass
+testing the pipeline; the resulting g_WL will NOT meet the strict pass
 criteria — the script exits 0 only when the strict criteria are satisfied.
 """
 
@@ -276,28 +275,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="quick smoke run (ln-f-final=1e-5; does NOT satisfy spec)",
+        help="quick smoke run (ln-f-final=1e-5; does NOT satisfy the pass criteria)",
     )
     parser.add_argument(
         "--n-check",
         type=int,
         default=1_000,
         help="WL flatness check period (default 1000; "
-        "tighter than the spec default 10000 to enter the "
+        "tighter than the common default 10000 to enter the "
         "1/t regime earlier)",
     )
     parser.add_argument(
         "--flatness",
         type=float,
         default=0.95,
-        help="WL flatness threshold (default 0.95; spec default is 0.8)",
+        help="WL flatness threshold (default 0.95; common default is 0.8)",
     )
     parser.add_argument(
         "--n-seeds",
         type=int,
         default=3,
         help="number of independent WL runs to average "
-        "(default 3; --n-seeds 1 = spec literal)",
+        "(default 3; --n-seeds 1 = single-seed reading)",
     )
     args = parser.parse_args(argv)
 

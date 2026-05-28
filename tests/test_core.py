@@ -23,7 +23,7 @@ from flatwalk.diagnostics import read_trace
 # ---------------------------------------------------------------------------
 # Reusable "tiny random walk" system: integer state ∈ {0..n-1}, propose ±1,
 # zero energy, order parameter = state. Out-of-range proposals exercise the
-# spec §1.3 reflecting-boundary convention.
+# reflecting-boundary convention.
 # ---------------------------------------------------------------------------
 
 
@@ -150,7 +150,7 @@ class TestTrialStep:
         # State and bin unchanged
         assert walker.state == 0
         assert walker.bin_current == 0
-        # g and H updated at *current* bin (reflecting convention, spec §1.3)
+        # g and H updated at *current* bin (reflecting convention)
         assert g[0] == pytest.approx(0.5)
         assert H[0] == 1
         assert visited[0] is True or bool(visited[0])
@@ -314,10 +314,10 @@ class TestRun:
         assert result.in_1overt is False
 
     def test_1overt_transition_at_known_t(self, tmp_path: Path):
-        """Spec §7 explicit test: 1/t regime triggers at the first halve
-        that would drop ln_f below 1/t. With ln_f_initial=1e-3 and
-        n_check=20, the first check fires at t=20 where halved=5e-4 and
-        1/t=0.05, so the switch happens immediately at t=20.
+        """1/t regime triggers at the first halve that would drop ln_f below
+        1/t. With ln_f_initial=1e-3 and n_check=20, the first check fires at
+        t=20 where halved=5e-4 and 1/t=0.05, so the switch happens immediately
+        at t=20.
         """
         sys = _tiny_system(3)
         trace = tmp_path / "trace.tsv"

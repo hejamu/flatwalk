@@ -5,8 +5,8 @@ The full L=8 validation to ln_f=1e-8 takes ~10 minutes and lives in
 
 This test exercises the pipeline at ln_f=1e-3 (~1 s) to catch wiring bugs
 in Beale ↔ WL ↔ comparison without paying the full cost.  It does NOT
-assert the spec pass criteria — only that the script runs end-to-end and
-the comparison numbers come out finite and in roughly the right ballpark.
+assert the strict pass criteria — only that the script runs end-to-end
+and the comparison numbers come out finite and in roughly the right ballpark.
 """
 
 from __future__ import annotations

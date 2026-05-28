@@ -6,8 +6,8 @@ walker). Instead of averaging independent runs, it splits the energy axis into
 adjacent-window exchanges, joins the per-window log-``g`` over their overlaps,
 and compares the result to Beale's exact ``n(E)``.
 
-Pass criteria (spec §5, mirroring §4.4)
----------------------------------------
+Pass criteria (mirroring the single-walker validation)
+------------------------------------------------------
 - ``max ε(E) < 0.05`` over visited central bins (excluding the two extremes).
 - ``mean ε(E) < 0.01`` over the same bins.
 - ``⟨E⟩(T)`` within 0.5% of exact across T ∈ [1.0, 4.0].

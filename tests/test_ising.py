@@ -57,7 +57,7 @@ def test_energy_in_valid_range_L8():
 
 
 def test_single_spin_flip_changes_exactly_one_site():
-    """The proposal must only ever change one spin (spec §4.2)."""
+    """The proposal must only ever change one spin."""
     L = 4
     rng = np.random.default_rng(0)
     spins, E = ising.random_state(L, rng)

@@ -4,7 +4,7 @@ Single-walker Wang-Landau on the 2D Ising model
 
 The canonical validation: sample ``g(E)`` of the 2D Ising model with one
 Wang-Landau walker and compare against Beale's exact ``n(E)`` from the
-previous example. This is the smoke version of the spec §4.4 validation —
+previous example. This is the smoke version of the full validation —
 the same pipeline as the full ``L=8`` runner at
 ``examples/ising_validation.py``, shrunk to ``L=4`` and a loose
 ``ln_f_final`` so it finishes in seconds.
@@ -59,7 +59,7 @@ print(f"L={L}: {len(n_E_exact)} distinct energies, total = 2^{L * L}")
 # Run Wang-Landau
 # ---------------
 #
-# Single seed, ``ln_f_final = 1e-5`` — well above the spec target of
+# Single seed, ``ln_f_final = 1e-5`` — well above the target of
 # ``1e-8``, but enough for the curve to take its right shape on ``L=4``.
 
 cb = ising.make_ising_callbacks(L)
@@ -145,7 +145,7 @@ plt.show()
 # ----------------------------
 #
 # This smoke run is single-seed at ``ln_f_final = 1e-5`` and only needs to look
-# right. Closing the gap to the spec criteria (``max ε < 0.05``,
+# right. Closing the gap to the strict criteria (``max ε < 0.05``,
 # ``mean ε < 0.01`` on ``L=8``) is the subject of the tutorials, which show the
 # error floor of standard halving and switch to the
 # :doc:`1/t schedule </theory/06-one-over-t>`, then cut the residual

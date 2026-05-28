@@ -165,7 +165,7 @@ the short version is:
 
 Runs 3 independent seeds to `ln_f_final = 1e-8`, averages the per-seed
 `log g`, compares to Beale's exact `n(E)`, and exits 0 only if all four
-spec §4.4 criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
+all four validation criteria pass (`max ε < 5%`, `mean ε < 1%`, `‹E›(T)` agreement
 within 0.5%, `C_V` peak temperature within 2%). The slow lane of CI
 runs this on every push.
 

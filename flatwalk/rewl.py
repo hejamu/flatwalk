@@ -5,8 +5,8 @@ factored out of :mod:`flatwalk.core` and reuses :class:`flatwalk.walker.WalkerBa
 The scalar single-walker driver, the shared-``g`` :meth:`WLDriver.run_batched`,
 and every existing example stay exactly as they are — REWL lives here.
 
-The picture (docs §5)
----------------------
+The picture
+-----------
 ``W`` windows tile the order-parameter range with overlap; each window has one
 walker confined to its sub-range and its own log-density estimate. All windows
 share the *same global bin grid* (``config.bin_scheme``) — a window is just a
@@ -19,9 +19,10 @@ choice makes two things trivial:
 - joining the windows afterwards aligns bin-for-bin in the overlap regions.
 
 Every per-tick primitive is vectorised over the ``W`` walkers — there is no
-``for w in walkers`` in the inner loop, exactly as in §4. The only Python loops
-over windows are in setup (`make_windows`), the periodic schedule check, and
-post-processing (`join_g`), none of which touch the energy backend.
+``for w in walkers`` in the inner loop, just as in the batched single-window
+driver. The only Python loops over windows are in setup (`make_windows`), the
+periodic schedule check, and post-processing (`join_g`), none of which touch
+the energy backend.
 
 REWL exchange uses the standard entropy-based (temperature-independent)
 criterion::
@@ -232,7 +233,7 @@ def _rewl_trial_step(
 
 
 class ReplicaExchangeHandler:
-    """Batched adjacent-window replica exchange (docs §5).
+    """Batched adjacent-window replica exchange.
 
     Holds the windows' bin bounds and the exchange period; one call swaps
     configurations between adjacent windows for a given parity. All adjacent
