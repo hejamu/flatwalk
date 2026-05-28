@@ -1,0 +1,187 @@
+:orphan:
+
+Tutorials
+=========
+
+A guided journey through flat-histogram sampling on **one system carried
+throughout** — the 2D Ising model. We start with plain Metropolis Monte Carlo,
+run into its limits, and fix them one method at a time: Wang-Landau to get the
+whole density of states, the 1/t schedule to sharpen convergence, several
+walkers to cut the variance, and replica exchange to make it robust and
+parallel. A final step turns the converged ``g(E)`` into thermodynamics.
+
+Read these in order — each picks up where the last left off. They are runnable
+scripts (executed live on every documentation build) at smoke size; the
+strict, slow ``L=8`` runs that meet the validation criteria live at the repo
+root under ``examples/``. For short, copy-paste recipes per method rather than a
+narrative, see the :doc:`examples </auto_examples/index>`; for the maths behind
+each step, the :doc:`theory </theory/index>`.
+
+
+.. raw:: html
+
+  <div id='sg-tag-list' class='sphx-glr-tag-list'></div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbnails">
+
+.. thumbnail-parent-div-open
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The journey starts before flatwalk. We sample the 2D Ising model the textbook way — fixed-temperature Metropolis Monte Carlo — measure its energy, and watch it run into the wall that flat-histogram sampling exists to knock down: a canonical run only ever visits the energies that matter at its own temperature. It can neither reach the rare states in the tails nor tell you anything about a different temperature without starting over.">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_1_plain_mc_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_1_plain_mc`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">1. Plain Monte Carlo on the Ising model — and where it falls short</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The previous tutorial left us stuck: plain Monte Carlo only ever sees the energies that matter at its own temperature. Wang-Landau breaks that tie. By estimating the density of states g(E) over the whole energy axis, a single run gives us the thermodynamics at every temperature at once.">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_2_wang_landau_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_2_wang_landau`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">2. Wang-Landau: one run, every temperature</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Tutorial 2 recovered the thermodynamics from a single g(E) — but only roughly. Standard Wang-Landau shrinks its modification factor ln f by halving it at each flat-histogram stage, and that schedule has a known weakness: once ln f is small the error stops improving, settling onto a floor set by the flatness criterion rather than by how long you run (Belardinelli &amp; Pereyra, PRE 75, 046701).">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_3_one_over_t_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_3_one_over_t`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">3. Sharpening convergence with the 1/t schedule</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="A single walker on a hard system has two distinct weaknesses, and several walkers sharing one g (~flatwalk.WLDriver.run_batched — one batched call per tick, no Python loop) cure them for two distinct reasons. This tutorial takes them one at a time, each with its own controlled experiment:">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_4_more_walkers_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_4_more_walkers`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">4. More walkers: symmetry and efficiency</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="More walkers (tutorial 4) cut the cost, but every walker still had to traverse the entire energy axis, and the steep tails stayed the slowest part for each of them. The next idea splits the axis instead: cut it into overlapping windows, confine one walker to each, and afterwards glue the per-window g back into one curve.">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_5_windows_gluing_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_5_windows_gluing`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">5. Windows and gluing</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Windowing (tutorial 5) made each walker&#x27;s job small and parallel — but it did so by confining each walker to an energy band. That confinement has a failure mode: if exploring a window properly requires briefly leaving it, the confined walker simply cannot, and gets stuck. Plain, full-range Wang-Landau never had this problem, because one walker roams the whole axis.">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_6_replica_exchange_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_6_replica_exchange`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">6. Replica exchange</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The journey ends where flat-histogram sampling was always headed: a single density of states g(E) carries the entire thermodynamics of the system. Here we take a converged g(E) and read off the free energy, internal energy, entropy, and heat capacity across temperature — comparing each against the exact answer from Beale&#x27;s n(E).">
+
+.. only:: html
+
+  .. image:: /auto_tutorials/images/thumb/sphx_glr_plot_7_thermodynamics_thumb.png
+    :alt:
+
+  :doc:`/auto_tutorials/plot_7_thermodynamics`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">7. Thermodynamics from a converged g(E)</div>
+    </div>
+
+
+.. thumbnail-parent-div-close
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/plot_1_plain_mc
+   /auto_tutorials/plot_2_wang_landau
+   /auto_tutorials/plot_3_one_over_t
+   /auto_tutorials/plot_4_more_walkers
+   /auto_tutorials/plot_5_windows_gluing
+   /auto_tutorials/plot_6_replica_exchange
+   /auto_tutorials/plot_7_thermodynamics
+
+
+.. only:: html
+
+  .. container:: sphx-glr-footer sphx-glr-footer-gallery
+
+    .. container:: sphx-glr-download sphx-glr-download-python
+
+      :download:`Download all examples in Python source code: auto_tutorials_python.zip </auto_tutorials/auto_tutorials_python.zip>`
+
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
+
+      :download:`Download all examples in Jupyter notebooks: auto_tutorials_jupyter.zip </auto_tutorials/auto_tutorials_jupyter.zip>`
+
+
+.. only:: html
+
+ .. rst-class:: sphx-glr-signature
+
+    `Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_

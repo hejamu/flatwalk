@@ -1,0 +1,76 @@
+
+:orphan:
+
+.. _sphx_glr_sg_execution_times:
+
+
+Computation times
+=================
+**14:27.652** total execution time for 14 files **from all galleries**:
+
+.. container::
+
+  .. raw:: html
+
+    <style scoped>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+    </style>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script type="text/javascript" class="init">
+    $(document).ready( function () {
+        $('table.sg-datatable').DataTable({order: [[1, 'desc']]});
+    } );
+    </script>
+
+  .. list-table::
+   :header-rows: 1
+   :class: table table-striped sg-datatable
+
+   * - Example
+     - Time
+     - Mem (MB)
+   * - :ref:`sphx_glr_auto_tutorials_plot_4_more_walkers.py` (``../tutorials/plot_4_more_walkers.py``)
+     - 09:38.215
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_5_windows_gluing.py` (``../tutorials/plot_5_windows_gluing.py``)
+     - 03:05.116
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_6_replica_exchange.py` (``../tutorials/plot_6_replica_exchange.py``)
+     - 00:30.486
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_3_one_over_t.py` (``../tutorials/plot_3_one_over_t.py``)
+     - 00:20.949
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_7_thermodynamics.py` (``../tutorials/plot_7_thermodynamics.py``)
+     - 00:19.595
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_2_wang_landau.py` (``../tutorials/plot_2_wang_landau.py``)
+     - 00:12.106
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_5_replica_exchange_ising.py` (``../examples/plot_5_replica_exchange_ising.py``)
+     - 00:06.017
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_4_batched_ising.py` (``../examples/plot_4_batched_ising.py``)
+     - 00:04.104
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_1_minimal_contract.py` (``../examples/plot_1_minimal_contract.py``)
+     - 00:03.654
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_3_single_walker_ising.py` (``../examples/plot_3_single_walker_ising.py``)
+     - 00:02.415
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_2_beale_reference.py` (``../examples/plot_2_beale_reference.py``)
+     - 00:01.928
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_7_trace_diagnostics.py` (``../examples/plot_7_trace_diagnostics.py``)
+     - 00:01.645
+     - 0.0
+   * - :ref:`sphx_glr_auto_tutorials_plot_1_plain_mc.py` (``../tutorials/plot_1_plain_mc.py``)
+     - 00:01.164
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_plot_6_checkpoint_resume.py` (``../examples/plot_6_checkpoint_resume.py``)
+     - 00:00.257
+     - 0.0

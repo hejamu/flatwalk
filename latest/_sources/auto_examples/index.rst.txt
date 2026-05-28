@@ -1,0 +1,187 @@
+:orphan:
+
+Examples
+========
+
+Short, adaptable **recipes** — one per flat-histogram method — for a user
+writing their own contract. Each is a self-contained script: keep the generic
+flatwalk wiring, swap in your own physics. They open with a line pointing at the
+tutorial or theory that explains the method, then stay terse.
+
+These are fast smoke versions (small ``L``, loose ``ln_f_final``) executed live
+on every documentation build. The full ``ln_f_final = 1e-8`` ``L=8`` runs that
+meet the strict pass criteria live at the repo root
+(``examples/ising_validation.py``, ``examples/ising_rewl_validation.py``) and
+run in CI's slow lane.
+
+For a guided, build-it-up narrative on a single system instead of standalone
+recipes, follow the :doc:`tutorials </auto_tutorials/index>`.
+
+
+.. raw:: html
+
+  <div id='sg-tag-list' class='sphx-glr-tag-list'></div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbnails">
+
+.. thumbnail-parent-div-open
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The smallest complete flatwalk program — a template to copy. It fills the four-callback contract for a toy whose answer we know, so the wiring stands out with no physics in the way.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_1_minimal_contract_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_1_minimal_contract`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">The minimal contract: a 1D random walk</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="flatwalk&#x27;s reference for the 2D Ising validation is the integer density of states n(E), computed by a Beale-style transfer-matrix recursion (``examples/beale.py``). For small enough lattices we can also enumerate every spin configuration directly and bin by energy. This example runs both on L=3 (512 configurations) and L=4 (65,536 configurations) and checks bin-for-bin agreement, sanity-checking the recursion before we lean on it to validate the WL driver on L=8.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_2_beale_reference_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_2_beale_reference`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Beale's recursion vs brute-force enumeration on small lattices</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The canonical validation: sample g(E) of the 2D Ising model with one Wang-Landau walker and compare against Beale&#x27;s exact n(E) from the previous example. This is the smoke version of the full validation — the same pipeline as the full L=8 runner at examples/ising_validation.py, shrunk to L=4 and a loose ln_f_final so it finishes in seconds.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_3_single_walker_ising_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_3_single_walker_ising`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Single-walker Wang-Landau on the 2D Ising model</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Run N walkers at once through one shared g with run_batched. Every tick is a single stacked call to each batched callback — never a Python loop over walkers — so a vectorised energy backend (NumPy here, but equally a GPU tensor or an MPI kernel) evaluates all N configurations in one shot. All walkers scatter into the same g, so the single window converges faster than one walker would.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_4_batched_ising_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_4_batched_ising`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Batched walkers through a shared g</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Replica-exchange Wang-Landau (REWL) splits the energy axis into overlapping windows, runs one walker per window (each confined to its sub-range), periodically exchanges configurations between adjacent windows, and joins the per-window g into one curve over the overlaps.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_5_replica_exchange_ising_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_5_replica_exchange_ising`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Replica-exchange Wang-Landau on the 2D Ising model</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Long flat-histogram runs need to survive interruption. flatwalk checkpoints the entire driver state — g, H, the f-stage schedule, the walker, and the full RNG state — so a run that is stopped and resumed from disk reproduces an uninterrupted run bit for bit. This recipe demonstrates that guarantee on the Ising model.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_6_checkpoint_resume_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_6_checkpoint_resume`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Checkpoint and bit-identical resume</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Set trace_path and flatwalk writes one TSV row per flatness check: the current ln_f, the histogram flatness, the acceptance rate, the spread of H over visited bins, and whether the 1/t regime has kicked in. Reading it back with read_trace lets you see how a run converged — when each f-stage ended and when standard halving handed off to the 1/t schedule (the subject of /theory/06-one-over-t).">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_7_trace_diagnostics_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_7_trace_diagnostics`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Diagnosing a run from its trace</div>
+    </div>
+
+
+.. thumbnail-parent-div-close
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_examples/plot_1_minimal_contract
+   /auto_examples/plot_2_beale_reference
+   /auto_examples/plot_3_single_walker_ising
+   /auto_examples/plot_4_batched_ising
+   /auto_examples/plot_5_replica_exchange_ising
+   /auto_examples/plot_6_checkpoint_resume
+   /auto_examples/plot_7_trace_diagnostics
+
+
+.. only:: html
+
+  .. container:: sphx-glr-footer sphx-glr-footer-gallery
+
+    .. container:: sphx-glr-download sphx-glr-download-python
+
+      :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
+
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
+
+      :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip </auto_examples/auto_examples_jupyter.zip>`
+
+
+.. only:: html
+
+ .. rst-class:: sphx-glr-signature
+
+    `Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_
