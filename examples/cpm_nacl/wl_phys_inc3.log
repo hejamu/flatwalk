@@ -1,0 +1,4 @@
+T = 300.0 K  ->  beta = 38.682 eV^-1
+Seeded 125 waters  (0.0276 /A^3 vs bulk 0.0334; 83% of bulk) between plates.
+Contract mode: incremental
+Pilot: 20000 Metropolis steps to equilibrate and locate <Q> ...
